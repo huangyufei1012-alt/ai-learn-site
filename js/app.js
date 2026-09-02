@@ -77,6 +77,96 @@
   var MAINLINE = ["l00-ai-world", "l-embedding", "l-attention", "l-transformer", "l-rag", "l-agent", "l22-ai-coding"];
 
   /* ==========================================================
+   * 唯一默认主学习路径「从零看懂 AI」（12 章，传统章节 TOC）
+   * 让用户打开就能学，一课一课往下走，不需要理解整个系统。
+   * ready 课程直接可学；其余标注「规划中」。
+   * ========================================================== */
+  var MAIN_PATH = [
+    { no: "一", title: "看懂 AI 世界", lessons: [
+      { no: "01", id: "l00-ai-world", title: "一张图看懂整个 AI 世界" },
+      { no: "02", id: "l01-ai-vs-ml-dl", title: "AI / ML / DL 到底什么关系" },
+      { no: "03", id: "pl-train-infer", title: "训练和使用模型有什么区别" }
+    ]},
+    { no: "二", title: "AI 怎么学习", lessons: [
+      { no: "04", id: "pl-data", title: "数据：AI 的原料" },
+      { no: "05", id: "l05-gradient-descent", title: "梯度下降：模型怎么自己变聪明" },
+      { no: "06", id: "pl-overfitting", title: "过拟合：为什么训练好、现实差" }
+    ]},
+    { no: "三", title: "数据与向量", lessons: [
+      { no: "07", id: "l02-vector-space", title: "向量与向量空间" },
+      { no: "08", id: "l-embedding", title: "Embedding：把词变成数字" },
+      { no: "09", id: "pl-semantic-search", title: "语义搜索" }
+    ]},
+    { no: "四", title: "机器如何学习", lessons: [
+      { no: "10", id: "l03-matrix-gradient", title: "矩阵、函数与梯度" },
+      { no: "11", id: "l08-neural-network", title: "神经网络：神经元如何学习" },
+      { no: "12", id: "l09-backprop", title: "反向传播：误差如何传回去" }
+    ]},
+    { no: "五", title: "大语言模型", lessons: [
+      { no: "13", id: "l-attention", title: "Attention：模型该关注哪个词" },
+      { no: "14", id: "l-transformer", title: "Transformer：大模型的地基" },
+      { no: "15", id: "pl-llm-training", title: "预训练 / 微调 / RLHF" }
+    ]},
+    { no: "六", title: "Prompt 与上下文", lessons: [
+      { no: "16", id: "pl-prompt", title: "Prompt：怎么和模型说清楚" },
+      { no: "17", id: "l12-context-window", title: "上下文窗口：模型一次能看多少" },
+      { no: "18", id: "pl-inference", title: "推理：模型怎么一个字一个字说话" }
+    ]},
+    { no: "七", title: "RAG 检索增强", lessons: [
+      { no: "19", id: "l-rag", title: "RAG：让模型先查资料再回答" }
+    ]},
+    { no: "八", title: "Agent 智能体", lessons: [
+      { no: "20", id: "l-agent", title: "Agent：让 AI 自己动手做事" },
+      { no: "21", id: "pl-function-calling", title: "Function Calling：让模型能动手" }
+    ]},
+    { no: "九", title: "多模态", lessons: [
+      { no: "22", id: "pl-multimodal", title: "多模态：文字图片声音一起懂" },
+      { no: "23", id: "pl-diffusion", title: "Diffusion：图片怎么被画出来" }
+    ]},
+    { no: "十", title: "AI Coding 编程", lessons: [
+      { no: "24", id: "l22-ai-coding", title: "AI Coding：把 AI 变成结对程序员" }
+    ]},
+    { no: "十一", title: "AI 工程", lessons: [
+      { no: "25", id: "pl-ai-eng", title: "AI 工程：从原型到生产" },
+      { no: "26", id: "pl-eval-cost", title: "评估与成本：怎么判断值不值" }
+    ]},
+    { no: "十二", title: "AI 产品与应用", lessons: [
+      { no: "27", id: "pl-ai-product", title: "AI 产品：从想法到落地" }
+    ]}
+  ];
+
+  // 把 12 章扁平化，附带章索引，便于按顺序找上下课
+  function pathFlat() {
+    var out = [];
+    MAIN_PATH.forEach(function (ch, ci) {
+      ch.lessons.forEach(function (l) { out.push({ lesson: l, chapter: ch, chapterIdx: ci }); });
+    });
+    return out;
+  }
+  function pathIndexOf(id) {
+    var a = pathFlat();
+    for (var i = 0; i < a.length; i++) if (a[i].lesson.id === id) return i;
+    return -1;
+  }
+  function pathChapterOf(id) {
+    var a = pathFlat();
+    for (var i = 0; i < a.length; i++) if (a[i].lesson.id === id) return a[i].chapter;
+    return null;
+  }
+  // 找到路径中距离当前课最近的一门「已就绪」课（跳过规划中）
+  function pathNeighbor(idx, dir) {
+    var a = pathFlat();
+    var i = idx + dir;
+    while (i >= 0 && i < a.length) {
+      if (L.getLesson(a[i].lesson.id)) return a[i].lesson;
+      i += dir;
+    }
+    return null;
+  }
+  function pathPrev(id) { var idx = pathIndexOf(id); return idx < 0 ? null : pathNeighbor(idx, -1); }
+  function pathNext(id) { var idx = pathIndexOf(id); return idx < 0 ? null : pathNeighbor(idx, 1); }
+
+  /* ==========================================================
    * 通用建块
    * ========================================================== */
   function pageShell(titleHtml, subHtml) {
@@ -140,68 +230,56 @@
   /* ==========================================================
    * Dashboard（学习者仪表盘）
    * ========================================================== */
+  /* ==========================================================
+   * Dashboard（首页 = 极简：让我马上开始学习）
+   * ========================================================== */
   function renderDashboard() {
-    var w = pageShell(
-      "<h1>从零开始，<span class='grad'>真正看懂整个 AI 世界</span></h1>",
-      "<p class='pg-sub'>6 门主线课，从一张图看懂 AI，到亲手弄懂 Embedding、Attention、Transformer、RAG、Agent。边看图、边动手实验、边做检验，把名词变成你脑子里的体系。</p>"
-    );
+    var w = el("div", "page-inner home-wrap");
+    app.innerHTML = "";
+    app.appendChild(w);
 
-    // 主操作：开始第一课 / 探索知识地图 / 选择学习路线
-    var lastId = progress.lastLesson && L.getLesson(progress.lastLesson) ? progress.lastLesson : (progress.order && progress.order.length ? progress.order[progress.order.length - 1] : null);
+    // 主操作：开始 / 继续学习
+    var lastId = progress.lastLesson && L.getLesson(progress.lastLesson) ? progress.lastLesson
+      : (progress.order && progress.order.length ? progress.order[progress.order.length - 1] : null);
     var haveLast = lastId && L.getLesson(lastId);
-    var cta = el("div", "dash-cta");
-    cta.innerHTML =
+    var doneCount = Object.keys(progress.done || {}).filter(function (k) { return L.getLesson(k); }).length;
+    var readyTotal = L.readyLessons().length;
+    var pct = readyTotal ? Math.round(doneCount / readyTotal * 100) : 0;
+
+    var hero = el("div", "home-hero");
+    hero.innerHTML =
+      "<div class='hh-badge'>AI 学堂</div>" +
+      "<h1>从零开始，一步一步看懂 AI</h1>" +
+      "<p class='hh-sub'>不需要任何基础，打开就能学。一课一课往下走，<b>AI 会一步一步讲给你听</b>。</p>" +
       (haveLast
-        ? "<button class='dash-btn primary' id='dashStart'>继续学习：" + esc(L.getLesson(lastId).title) + " →</button>"
-        : "<button class='dash-btn primary' id='dashStart'>🚀 开始第一课</button>") +
-      "<button class='dash-btn ghost' id='dashMap'>🧭 探索知识地图</button>" +
-      "<button class='dash-btn ghost' id='dashLearn'>🗺 选择学习路线</button>";
-    w.appendChild(cta);
-    $("#dashStart").addEventListener("click", function () { go("#/lesson/" + (lastId || "l00-ai-world")); });
-    $("#dashMap").addEventListener("click", function () { go("#/map"); });
-    $("#dashLearn").addEventListener("click", function () { go("#/learn"); });
+        ? "<button class='hh-cta' id='hhGo'>继续学习 · " + esc(L.getLesson(lastId).title) + " <span class='hh-arr'>→</span></button>"
+        : "<button class='hh-cta' id='hhGo'>🚀 开始学习</button>") +
+      (haveLast ? "<div class='hh-prog'><div class='hh-bar'><i style='width:" + pct + "%'></i></div><span>已完成 " + doneCount + " / " + readyTotal + " 课 · " + pct + "%</span></div>" : "");
+    w.appendChild(hero);
+    $("#hhGo").addEventListener("click", function () { go("#/lesson/" + (lastId || "l00-ai-world")); });
 
-    // 学习进度条
-    var readyLessons = L.readyLessons();
-    var doneList = Object.keys(progress.done || {}).filter(function (k) { return L.getLesson(k); });
-    var pct = readyLessons.length ? Math.round(doneList.length / readyLessons.length * 100) : 0;
-    var progBlock = el("div", "dash-progress");
-    var nextReady = MAINLINE.map(function (id) { return L.getLesson(id); }).filter(Boolean);
-    progBlock.innerHTML =
-      "<div class='dp-head'><span>学习进度</span><b>" + doneList.length + " / " + readyLessons.length + " 门 · " + pct + "%</b></div>" +
-      "<div class='dp-bar'><i style='width:" + pct + "%'></i></div>" +
-      "<div class='dp-note'>下一课：" + esc((nextReady[doneList.length] || nextReady[0] || { title: "开始第一课" }).title) + "</div>";
-    w.appendChild(progBlock);
-
-    // 推荐课程：主线 6 门（真正学懂的主线）
-    var rec = el("div", "block");
-    rec.innerHTML = "<div class='block-title'><h2>✨ 推荐课程 · 主线</h2><span>按这个顺序学，一环扣一环，别跳</span></div>";
-    w.appendChild(rec);
-    var mlWrap = el("div", "mainline");
-    rec.appendChild(mlWrap);
-    MAINLINE.forEach(function (id, i) {
-      var l = L.getLesson(id);
-      var meta = L.getCurriculumLessonMeta(id);
-      var card = lessonCard(l && l.title ? l : { title: (meta && meta.title) || id }, meta);
-      card.addEventListener("click", function () { if (L.getLesson(id)) go("#/lesson/" + id); });
-      var node = el("div", "ml-node");
-      node.appendChild(card);
-      mlWrap.appendChild(node);
-      if (i < MAINLINE.length - 1) mlWrap.appendChild(el("div", "ml-arrow", "<span>→</span>"));
+    // 课程路径：从零看懂 AI（12 章）
+    var path = el("div", "block home-path");
+    path.innerHTML = "<div class='block-title'><h2>课程路径 · 从零看懂 AI</h2><span>共 12 章，按顺序往下学</span></div>";
+    w.appendChild(path);
+    var steps = el("ol", "hp-steps");
+    MAIN_PATH.forEach(function (ch, ci) {
+      var li = el("li", "hp-step" + (ci === 0 ? " first" : ""));
+      li.innerHTML = "<div class='hp-no'><b>" + esc(ch.no) + "</b></div>" +
+        "<div class='hp-body'><div class='hp-title'>" + esc(ch.title) + "</div>" +
+        "<div class='hp-sub'>" + ch.lessons.length + " 课</div></div>" +
+        "<span class='hp-go'>查看 →</span>";
+      li.addEventListener("click", function () { go("#/learn"); });
+      steps.appendChild(li);
     });
+    path.appendChild(steps);
 
-    // 知识地图预览（小型嵌套示意，跳转到完整地图）
-    var preview = el("div", "block");
-    preview.innerHTML = "<div class='block-title'><h2>🕸 知识地图预览</h2><span>AI 的世界是一层层包含的，点开看完整地图</span></div>";
-    w.appendChild(preview);
-    var pvBox = el("div", "viz-mount dash-mapv");
-    preview.appendChild(pvBox);
-    if (Viz && Viz.render) {
-      setTimeout(function () { Viz.render(pvBox, "ai-world-map", { compact: true }); }, 0);
-    }
-    var pvBtn = el("button", "dash-btn ghost dash-maplink", "打开完整知识地图 →");
-    pvBtn.addEventListener("click", function () { go("#/map"); });
-    preview.appendChild(pvBtn);
+    // 辅助入口：知识地图 / 实战
+    var aux = el("div", "home-aux");
+    aux.innerHTML =
+      "<a class='aux-link' href='#/map'><span class='aux-ico'>🧭</span><div><b>知识地图</b><i>我在 AI 世界的什么位置</i></div><em>打开 →</em></a>" +
+      "<a class='aux-link' href='#/projects'><span class='aux-ico'>🛠</span><div><b>实战项目</b><i>动手做出真东西</i></div><em>打开 →</em></a>";
+    w.appendChild(aux);
   }
 
   /* ==========================================================
@@ -209,50 +287,47 @@
    * ========================================================== */
   function renderLearn() {
     var w = pageShell(
-      "<h1>开始学习</h1>",
-      "<p class='pg-sub'>四层结构：分类 → 章 → 课 → 概念。已就绪的课程可以点开完整学习，其余标明「规划中」。</p>"
+      "<h1>课程目录</h1>",
+      "<p class='pg-sub'>从零看懂 AI · 一条主线 12 章。按顺序往下学，随时回来查看进度。</p>"
     );
-    if (!L.curriculum) { w.appendChild(el("div", "empty", "课程目录尚未就绪")); return; }
 
-    var readyCnt = 0, total = 0;
-    (L.curriculum.categories || []).forEach(function (cat) {
-      (cat.chapters || []).forEach(function (ch) {
-        (ch.lessons || []).forEach(function (l) { total++; if (l.ready) readyCnt++; });
-      });
-    });
+    var doneCount = Object.keys(progress.done || {}).filter(function (k) { return L.getLesson(k); }).length;
+    var readyTotal = L.readyLessons().length;
     var prog = el("div", "learn-progress");
-    prog.innerHTML = "<div class='lp-text'>课程进度：<b>" + readyCnt + " / " + total + "</b> 已就绪</div>" +
-      "<div class='lp-bar'><i style='width:" + (readyCnt / total * 100).toFixed(1) + "%'></i></div>";
+    prog.innerHTML = "<div class='lp-text'>学习进度：已完成 <b>" + doneCount + "</b> / " + readyTotal + " 课</div>" +
+      "<div class='lp-bar'><i style='width:" + (readyTotal ? Math.round(doneCount / readyTotal * 100) : 0) + "%'></i></div>";
     w.appendChild(prog);
 
-    (L.curriculum.categories || []).forEach(function (cat) {
-      var loc = K.getCategory(cat.category);
-      var sect = el("section", "learn-cat");
-      sect.style.setProperty("--catc", (loc && loc.color) || "#5b6cff");
-      var head = el("div", "learn-cat-head");
-      head.innerHTML = "<span class='lch-ico'>" + ((loc && loc.icon) || "📘") + "</span>" +
-        "<div class='lch-title'><b>" + esc(cat.title) + "</b>" +
-        (cat.overview && cat.overview.headline ? "<span>" + esc(cat.overview.headline) + "</span>" : "") + "</div>";
+    var curLesson = (progress.lastLesson && L.getLesson(progress.lastLesson)) ? progress.lastLesson : null;
+    var toc = el("div", "toc");
+    MAIN_PATH.forEach(function (ch, ci) {
+      var sect = el("section", "toc-chapter" + (curLesson && chapterIdOf(curLesson) === ci ? " open" : ""));
+      var head = el("div", "toc-ch-head");
+      head.innerHTML = "<span class='toc-no'>第 " + esc(ch.no) + " 章</span><b>" + esc(ch.title) + "</b><span class='toc-cnt'>" + ch.lessons.length + " 课</span>";
+      head.addEventListener("click", function () { sect.classList.toggle("open"); });
       sect.appendChild(head);
-
-      var chapters = cat.chapters || [];
-      chapters.forEach(function (ch) {
-        var chBlock = el("div", "learn-chapter");
-        chBlock.innerHTML = "<div class='lc-ch-title'>" + esc(ch.title) + "</div>";
-        var grid = el("div", "lesson-grid");
-        ch.lessons.forEach(function (l) {
-          var full = L.getLesson(l.id);
-          var card = lessonCard(full || { title: l.title }, l);
-          card.addEventListener("click", function () {
-            if (full) { setLastLesson(l.id); go("#/lesson/" + l.id); }
-          });
-          grid.appendChild(card);
-        });
-        chBlock.appendChild(grid);
-        sect.appendChild(chBlock);
+      var list = el("ol", "toc-list");
+      ch.lessons.forEach(function (l) {
+        var full = L.getLesson(l.id);
+        var ready = !!full;
+        var done = isDone(l.id);
+        var row = el("li", "toc-row" + (done ? " done" : "") + (ready ? "" : " soon") + (curLesson === l.id ? " cur" : "") + (ready ? " clickable" : ""));
+        row.innerHTML = "<span class='toc-num'>" + esc(l.no) + "</span>" +
+          "<span class='toc-title'>" + esc(l.title) + "</span>" +
+          (done ? "<span class='toc-st ok'>✔ 已学</span>" : (ready ? "<span class='toc-st'>开始</span>" : "<span class='toc-st plan'>规划中</span>"));
+        row.addEventListener("click", function () { if (ready) { setLastLesson(l.id); go("#/lesson/" + l.id); } });
+        list.appendChild(row);
       });
-      w.appendChild(sect);
+      sect.appendChild(list);
+      toc.appendChild(sect);
     });
+    w.appendChild(toc);
+    w.appendChild(el("p", "toc-note", "标注「规划中」的课程正在编写，会陆续上线。已就绪的课程随时可以点开学习。"));
+  }
+  function chapterIdOf(id) {
+    var a = pathFlat();
+    for (var i = 0; i < a.length; i++) if (a[i].lesson.id === id) return a[i].chapterIdx;
+    return -1;
   }
 
   /* ==========================================================
@@ -269,69 +344,75 @@
   }
 
   function buildLessonPage(lesson, meta, id) {
-    var root = el("div", "page-inner lesson-page");
-    // 面包屑
-    var crumbs = el("div", "crumbs");
+    var root = el("div", "page-inner lesson-page three-col");
+
+    // 面包屑：课程 → 第 X 章 · 章名 → 本课
+    var chObj = pathChapterOf(id);
     var catT = (meta && meta.catId && K.getCategory(meta.catId)) ? K.getCategory(meta.catId).title : "课程";
-    crumbs.innerHTML = "<a href='#/learn'>课程</a> <span>/</span> <span>" + esc(catT) + "</span>" +
-      (meta && meta.chapter ? " <span>/</span> <span class='cur'>" + esc(meta.chapter) + "</span>" : "");
+    var crumbs = el("div", "crumbs");
+    crumbs.innerHTML = "<a href='#/learn'>课程</a> <span>/</span> " +
+      (chObj ? "<span class='cur'>第 " + esc(chObj.no) + " 章 · " + esc(chObj.title) + "</span>" : "<span>" + esc(catT) + "</span>") +
+      (lesson ? " <span>/</span> <span class='cur'>" + esc(lesson.title) + "</span>" : "");
     root.appendChild(crumbs);
 
+    // 页眉：只保留 预计时长 / 难度 / 学习状态 / 上一课·下一课 / 知识地图入口（隐藏系统信息）
     var title = lesson ? lesson.title : ((meta && meta.meta.title) || id);
-    var head = el("div", "lesson-head");
+    var done = isDone(id);
+    var status = done ? "已完成" : (progress.lastLesson === id ? "学习中" : "未学习");
+    var head = el("div", "lesson-head lp-head");
+    var pv = pathPrev(id), nx = pathNext(id);
     head.innerHTML =
-      "<div class='lh-badges'>" +
-        (lesson ? "<span class='badge b-lv'>" + esc(lesson.level || "base") + "</span>" : "") +
-        (lesson && lesson.estTime ? "<span class='badge b-time'>⏱ " + esc(lesson.estTime) + "</span>" : "") +
-        (lesson && lesson.difficulty ? "<span class='badge b-lv'>难度 " + lesson.difficulty + "/5</span>" : "") +
-        (isDone(id) ? "<span class='badge b-ok'>✓ 已学完</span>" : "") +
+      "<div class='lp-meta'>" +
+        (lesson && lesson.estTime ? "<span class='lm'>⏱ 预计 " + esc(lesson.estTime) + "</span>" : "") +
+        (lesson && lesson.difficulty ? "<span class='lm'>难度 " + lesson.difficulty + " / 5</span>" : "") +
+        "<span class='lm lm-status st-" + (done ? "done" : (progress.lastLesson === id ? "doing" : "todo")) + "'>" + status + "</span>" +
       "</div>" +
       "<h1>" + esc(title) + "</h1>" +
-      (lesson && lesson.subtitle ? "<p class='lh-subtitle'>" + esc(lesson.subtitle) + "</p>" : "");
+      (lesson && lesson.subtitle ? "<p class='lh-subtitle'>" + esc(lesson.subtitle) + "</p>" : "") +
+      "<div class='lp-nav'>" +
+        (pv ? "<a class='lp-prev' href='#/lesson/" + esc(pv.id) + "'>← 上一课 · " + esc(pv.title) + "</a>" : "<span class='lp-prev off'>← 已是第一课</span>") +
+        "<a class='lp-map' href='#/map'>在知识地图中查看 →</a>" +
+        (nx ? "<a class='lp-next' href='#/lesson/" + esc(nx.id) + "'>下一课 · " + esc(nx.title) + " →</a>" : "<span class='lp-next off'>已是最后一课 →</span>") +
+      "</div>";
     root.appendChild(head);
 
-    // 前置 / 后继
-    if (lesson && (lesson.prereqLessons.length || lesson.nextLesson)) {
-      var links = el("div", "lesson-links");
-      var pre = (lesson.prereqLessons || []).map(function (pid) {
-        var p = L.getLesson(pid);
-        return "<a href='#/lesson/" + esc(pid) + "' class='llink'><b>前置</b> " + esc((p && p.title) || pid) + "</a>";
-      }).join("");
-      var nxt = lesson.nextLesson ? (function () {
-        var n = L.getLesson(lesson.nextLesson);
-        return "<a href='#/lesson/" + esc(lesson.nextLesson) + "' class='llink'><b>下一课</b> " + esc((n && n.title) || lesson.nextLesson) + "</a>";
-      })() : "";
-      links.innerHTML = pre + nxt;
-      root.appendChild(links);
-    }
+    // 三栏布局
+    var grid = el("div", "lp-grid");
 
-    // 概念清单
-    if (lesson && lesson.concepts && lesson.concepts.length) {
-      var ctags = el("div", "lesson-concepts");
-      ctags.innerHTML = "<span class='lct-label'>本课涉及概念</span>" +
-        lesson.concepts.map(function (cid) {
-          var c = K.getConcept(cid);
-          return "<span class='lct' title='" + esc(cid) + "'>" + esc((c && c.title) || cid) + "</span>";
-        }).join("");
-      root.appendChild(ctags);
-    }
+    // 左栏：本章课程
+    var left = el("aside", "lp-left");
+    var chTitle = chObj ? ("第 " + chObj.no + " 章 · " + chObj.title) : "本章课程";
+    left.innerHTML = "<div class='lp-side-title'>" + esc(chTitle) + "</div>";
+    var chList = el("ol", "lp-ch-list");
+    (chObj ? chObj.lessons : []).forEach(function (l) {
+      var full = L.getLesson(l.id);
+      var rdy = !!full;
+      var dd = isDone(l.id);
+      var li = el("li", "lp-ch-item" + (rdy ? " clickable" : " soon") + (l.id === id ? " cur" : ""));
+      li.innerHTML = "<span class='lpc-no'>" + esc(l.no) + "</span>" +
+        "<span class='lpc-t'>" + esc(l.title) + "</span>" +
+        (dd ? "<span class='lpc-ok'>✔</span>" : "");
+      li.addEventListener("click", function () { if (rdy && l.id !== id) { setLastLesson(l.id); go("#/lesson/" + l.id); } });
+      chList.appendChild(li);
+    });
+    left.appendChild(chList);
+    grid.appendChild(left);
 
-    // sections
+    // 中栏：连续叙事正文（实验 + 测验内嵌）
+    var mid = el("article", "lp-mid");
     if (lesson && lesson.sections) {
-      var body = el("div", "lesson-body");
       lesson.sections.forEach(function (sec, si) {
         var sEl = renderSection(sec, si);
         if (sEl && sEl.tagName) sEl.id = "sec" + si;
-        body.appendChild(sEl);
+        mid.appendChild(sEl);
       });
-      root.appendChild(body);
     } else {
-      root.appendChild(el("div", "empty", "该课程内容尚未撰写。"));
+      mid.appendChild(el("div", "empty", "该课程内容尚未撰写。"));
     }
 
-    // 完成按钮 + 上下课
+    // 完成本课 + 上一课 / 下一课
     var foot = el("div", "lesson-foot");
-    var doneBtn = el("button", "dash-btn primary", isDone(id) ? "✓ 已标记完成（点击取消）" : "标记为已学完");
+    var doneBtn = el("button", "dash-btn primary", done ? "✓ 已完成本课（点击取消）" : "标记为已学完，下一课");
     doneBtn.addEventListener("click", function () {
       if (isDone(id)) { delete progress.done[id]; progress.order = (progress.order || []).filter(function (x) { return x !== id; }); }
       else markDone(id);
@@ -339,19 +420,45 @@
       renderLesson(id);
     });
     foot.appendChild(doneBtn);
-    if (lesson && lesson.nextLesson) {
-      var nx = L.getLesson(lesson.nextLesson);
-      var nb = el("button", "dash-btn ghost", "下一课 → " + esc((nx && nx.title) || lesson.nextLesson));
-      nb.addEventListener("click", function () { go("#/lesson/" + lesson.nextLesson); });
+    if (nx) {
+      var nb = el("button", "dash-btn ghost", "下一课 · " + esc(nx.no) + " " + esc(nx.title) + " →");
+      nb.addEventListener("click", function () { setLastLesson(nx.id); go("#/lesson/" + nx.id); });
       foot.appendChild(nb);
     }
-    root.appendChild(foot);
+    if (pv) {
+      var pb = el("button", "dash-btn ghost", "← 上一课 · " + esc(pv.no) + " " + esc(pv.title));
+      pb.addEventListener("click", function () { setLastLesson(pv.id); go("#/lesson/" + pv.id); });
+      foot.appendChild(pb);
+    }
+    mid.appendChild(foot);
+    grid.appendChild(mid);
+
+    // 右栏：本课目录（章节锚点）
+    var right = el("aside", "lp-right");
+    right.innerHTML = "<div class='lp-side-title'>本课目录</div>";
+    var toc = el("ol", "lp-toc");
+    if (lesson && lesson.sections) {
+      lesson.sections.forEach(function (sec, si) {
+        var li = el("li", "lp-toc-item");
+        li.innerHTML = "<span class='lpt-no'>" + (si + 1) + "</span><span>" + esc(sectionLabel(sec)) + "</span>";
+        li.addEventListener("click", function () { var n = document.getElementById("sec" + si); if (n) n.scrollIntoView({ behavior: "smooth", block: "start" }); });
+        toc.appendChild(li);
+      });
+    }
+    right.appendChild(toc);
+    grid.appendChild(right);
+
+    root.appendChild(grid);
 
     // 记录学习位置
     setLastLesson(id);
     return root;
   }
 
+  function sectionLabel(sec) {
+    if (sec.title) return sec.title;
+    return NARRATIVE[sec.type] || LABELS[sec.type] || sec.type;
+  }
   function renderSection(sec, si) {
     var t = sec.type;
     switch (t) {
@@ -377,13 +484,31 @@
     var wrap = el("div", "sec sec-" + type);
     var label = el("div", "sec-label", LABELS[type] || type);
     wrap.appendChild(label);
-    if (title) {
-      var h = el("div", "sec-title", "<h2>" + esc(title) + "</h2>");
+    var heading = title || NARRATIVE[type] || LABELS[type] || "";
+    if (heading) {
+      var h = el("div", "sec-title", "<h2>" + esc(heading) + "</h2>");
       wrap.appendChild(h);
     }
     if (more) wrap.appendChild(more);
     return wrap;
   }
+  // 连续叙事的章节标题（让课程像一本书，从上往下读）
+  var NARRATIVE = {
+    opening: "先想一个问题",
+    why: "为什么需要它？",
+    oneline: "一句话，先看懂",
+    visual: "动手，直观感受",
+    intuition: "直觉理解",
+    how: "它到底是怎么工作的",
+    deep: "再深入一点",
+    realworld: "它在真实世界怎么用",
+    compare: "别把这几样搞混",
+    mistakes: "最常见的误解",
+    exercise: "你猜一下：接下来会怎样？",
+    check: "小测验：你真的懂了吗",
+    connection: "和前后课连起来",
+    practice: "动手练一练"
+  };
   var LABELS = {
     oneline: "一句话看懂", why: "为什么需要它", visual: "动手看看",
     intuition: "直觉理解", how: "它是怎么工作的", deep: "深入一点",
@@ -1053,8 +1178,76 @@
    * ========================================================== */
   function renderNotFound() {
     var w = pageShell("<h1>页面不存在</h1>", "<p class='pg-sub'>你访问的页面不存在或已下线。</p>");
-    w.appendChild(el("button", "dash-btn primary", "← 返回仪表盘"));
+    w.appendChild(el("button", "dash-btn primary", "← 返回首页"));
     $(".dash-btn", w).addEventListener("click", function () { go("#/dashboard"); });
+  }
+
+  /* ==========================================================
+   * 实战（实践项目入口）
+   * ========================================================== */
+  function renderProjects() {
+    var w = pageShell(
+      "<h1>实战项目</h1>",
+      "<p class='pg-sub'>把学到的动手做出来。每个项目都带有可交互实验，直接在对应课程里就能上手。</p>"
+    );
+    var grid = el("div", "proj-grid");
+    var added = 0;
+    var LABKINDS = ["ai-world-map", "embedding-space", "attention-heatmap", "transformer-flow", "rag-pipeline", "agent-loop"];
+    (L.flagshipLessons && L.flagshipLessons() || L.readyLessons()).forEach(function (ls) {
+      if (!ls || !ls.sections) return;
+      ls.sections.forEach(function (sec) {
+        if (sec.type === "visual" && LABKINDS.indexOf(sec.kind) !== -1) {
+          added++;
+          var card = el("a", "proj-card", "");
+          card.setAttribute("href", "#/lesson/" + ls.id);
+          card.innerHTML = "<div class='pc-ico'>🧪</div>" +
+            "<div class='pc-body'><b>" + esc(sec.title || "动手实验") + "</b>" +
+            "<span>" + esc(ls.title) + "</span></div>" +
+            "<span class='pc-go'>去做 →</span>";
+          grid.appendChild(card);
+        }
+      });
+    });
+    if (!added) grid.appendChild(el("div", "empty", "实战项目正在整理中，敬请期待。"));
+    w.appendChild(grid);
+    var coming = el("div", "proj-coming");
+    coming.innerHTML = "<div class='block-title'><h2>规划中</h2><span>更多实战项目正在编写：做一个聊天机器人、搭建一个 RAG 问答、训练你的第一个小模型…</span></div>";
+    w.appendChild(coming);
+  }
+
+  /* ==========================================================
+   * 我的学习（极简学习状态）
+   * ========================================================== */
+  function renderMine() {
+    var w = pageShell(
+      "<h1>我的学习</h1>",
+      "<p class='pg-sub'>沿着「从零看懂 AI」的主线，记录你每一课的进度。</p>"
+    );
+    var doneCount = Object.keys(progress.done || {}).filter(function (k) { return L.getLesson(k); }).length;
+    var readyTotal = L.readyLessons().length;
+    var pct = readyTotal ? Math.round(doneCount / readyTotal * 100) : 0;
+    var ov = el("div", "mine-ov");
+    ov.innerHTML = "<div class='mv-num'>" + pct + "<span>%</span></div>" +
+      "<div class='mv-l'>已完成 <b>" + doneCount + "</b> / " + readyTotal + " 课 · 从零看懂 AI</div>" +
+      "<div class='mv-bar'><i style='width:" + pct + "%'></i></div>";
+    w.appendChild(ov);
+
+    var list = el("div", "mine-list");
+    MAIN_PATH.forEach(function (ch) {
+      ch.lessons.forEach(function (l) {
+        var full = L.getLesson(l.id);
+        if (!full) return;
+        var dd = isDone(l.id);
+        var st = dd ? "已完成" : (progress.lastLesson === l.id ? "学习中" : "未学习");
+        var row = el("div", "mine-row" + (dd ? " done" : ""));
+        row.innerHTML = "<span class='mr-no'>" + esc(l.no) + "</span>" +
+          "<div class='mr-t'><b>" + esc(l.title) + "</b><span>" + esc(ch.title) + "</span></div>" +
+          "<span class='mr-st " + (dd ? "ok" : (progress.lastLesson === l.id ? "doing" : "todo")) + "'>" + st + "</span>";
+        row.addEventListener("click", function () { go("#/lesson/" + l.id); });
+        list.appendChild(row);
+      });
+    });
+    w.appendChild(list);
   }
 
   var routers = {
@@ -1064,7 +1257,9 @@
     explore: renderExplore,
     labs: renderLabs,
     review: renderReview,
-    search: renderSearch
+    search: renderSearch,
+    projects: renderProjects,
+    mine: renderMine
   };
   function showNotFound() { renderNotFound(); }
 
@@ -1074,9 +1269,10 @@
     var name = parts[0] || "dashboard";
     var arg = parts[1] ? decodeURIComponent(parts[1]) : null;
 
-    // 高亮导航
+    // 高亮导航（进入课程时高亮「学习」）
+    var activeName = (name === "lesson") ? "learn" : name;
     $$("#mainNav a").forEach(function (a) {
-      a.classList.toggle("active", a.getAttribute("data-route") === name);
+      a.classList.toggle("active", a.getAttribute("data-route") === activeName);
     });
 
     // 滚动到顶
