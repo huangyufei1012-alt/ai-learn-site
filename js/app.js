@@ -138,81 +138,70 @@
   }
 
   /* ==========================================================
-   * Dashboard
+   * Dashboard（学习者仪表盘）
    * ========================================================== */
   function renderDashboard() {
     var w = pageShell(
-      "<h1>从零开始，<span class='grad'>看懂整个 AI 世界</span></h1>",
-      "<p class='pg-sub'>这是一套真正的 11 段式交互课程：边看可视化、边动手实验、边做测验，一步步把 AI 从名词变成你脑子里的体系。</p>"
+      "<h1>从零开始，<span class='grad'>真正看懂整个 AI 世界</span></h1>",
+      "<p class='pg-sub'>6 门主线课，从一张图看懂 AI，到亲手弄懂 Embedding、Attention、Transformer、RAG、Agent。边看图、边动手实验、边做检验，把名词变成你脑子里的体系。</p>"
     );
 
-    // CTA
+    // 主操作：开始第一课 / 探索知识地图 / 选择学习路线
+    var lastId = progress.lastLesson && L.getLesson(progress.lastLesson) ? progress.lastLesson : (progress.order && progress.order.length ? progress.order[progress.order.length - 1] : null);
+    var haveLast = lastId && L.getLesson(lastId);
     var cta = el("div", "dash-cta");
-    var lastId = progress.lastLesson;
-    var last = lastId ? L.getLesson(lastId) : null;
-    var contBtn = "开始学习";
-    if (last) {
-      contBtn = isDone(lastId) ? "重新学习：" + last.title : "继续学习：" + last.title;
-    }
     cta.innerHTML =
-      "<button class='dash-btn primary' id='dashStart'>" + esc(contBtn) + " →</button>" +
+      (haveLast
+        ? "<button class='dash-btn primary' id='dashStart'>继续学习：" + esc(L.getLesson(lastId).title) + " →</button>"
+        : "<button class='dash-btn primary' id='dashStart'>🚀 开始第一课</button>") +
       "<button class='dash-btn ghost' id='dashMap'>🧭 探索知识地图</button>" +
-      "<button class='dash-btn ghost' id='dashLearn'>📚 查看全部课程</button>";
+      "<button class='dash-btn ghost' id='dashLearn'>🗺 选择学习路线</button>";
     w.appendChild(cta);
     $("#dashStart").addEventListener("click", function () { go("#/lesson/" + (lastId || "l00-ai-world")); });
     $("#dashMap").addEventListener("click", function () { go("#/map"); });
     $("#dashLearn").addEventListener("click", function () { go("#/learn"); });
 
-    // 统计
-    var stats = el("div", "stats-grid");
-    var lCount = L.readyLessons().length;
-    var items = [
-      { v: lCount, l: "已就绪课程", c: "var(--primary)" },
-      { v: K.meta.concepts, l: "知识概念", c: "var(--accent)" },
-      { v: K.meta.categories, l: "AI 领域分类", c: "#ff7043" },
-      { v: Object.keys(progress.done || {}).length, l: "已学完课程", c: "var(--good)" }
-    ];
-    stats.innerHTML = items.map(function (it) {
-      return "<div class='stat'><div class='v' style='color:" + it.c + "'>" + it.v + "</div><div class='l'>" + it.l + "</div></div>";
-    }).join("");
-    w.appendChild(stats);
+    // 学习进度条
+    var readyLessons = L.readyLessons();
+    var doneList = Object.keys(progress.done || {}).filter(function (k) { return L.getLesson(k); });
+    var pct = readyLessons.length ? Math.round(doneList.length / readyLessons.length * 100) : 0;
+    var progBlock = el("div", "dash-progress");
+    var nextReady = MAINLINE.map(function (id) { return L.getLesson(id); }).filter(Boolean);
+    progBlock.innerHTML =
+      "<div class='dp-head'><span>学习进度</span><b>" + doneList.length + " / " + readyLessons.length + " 门 · " + pct + "%</b></div>" +
+      "<div class='dp-bar'><i style='width:" + pct + "%'></i></div>" +
+      "<div class='dp-note'>下一课：" + esc((nextReady[doneList.length] || nextReady[0] || { title: "开始第一课" }).title) + "</div>";
+    w.appendChild(progBlock);
 
-    // 旗舰课（建议先学）
-    var fs = el("div", "block");
-    fs.innerHTML = "<div class='block-title'><h2>✨ 主线课程 · 建议按顺序学</h2><span>从一张图看懂 AI，到亲手弄懂 Agent</span></div>";
-    w.appendChild(fs);
-    var mainlineWrap = el("div", "mainline");
-    fs.appendChild(mainlineWrap);
+    // 推荐课程：主线 6 门（真正学懂的主线）
+    var rec = el("div", "block");
+    rec.innerHTML = "<div class='block-title'><h2>✨ 推荐课程 · 主线</h2><span>按这个顺序学，一环扣一环，别跳</span></div>";
+    w.appendChild(rec);
+    var mlWrap = el("div", "mainline");
+    rec.appendChild(mlWrap);
     MAINLINE.forEach(function (id, i) {
       var l = L.getLesson(id);
       var meta = L.getCurriculumLessonMeta(id);
       var card = lessonCard(l && l.title ? l : { title: (meta && meta.title) || id }, meta);
-      card.addEventListener("click", function () {
-        if (L.getLesson(id)) go("#/lesson/" + id);
-      });
+      card.addEventListener("click", function () { if (L.getLesson(id)) go("#/lesson/" + id); });
       var node = el("div", "ml-node");
       node.appendChild(card);
-      mainlineWrap.appendChild(node);
-      if (i < MAINLINE.length - 1) {
-        var arr = el("div", "ml-arrow", "<span>→</span>");
-        mainlineWrap.appendChild(arr);
-      }
+      mlWrap.appendChild(node);
+      if (i < MAINLINE.length - 1) mlWrap.appendChild(el("div", "ml-arrow", "<span>→</span>"));
     });
 
-    // 领域分类预览
-    var dept = el("div", "block");
-    dept.innerHTML = "<div class='block-title'><h2>🗂 覆盖哪些领域</h2><span>12 大分类，从基础到产品全链路</span></div>";
-    w.appendChild(dept);
-    var catGrid = el("div", "cat-preview");
-    K.categories.forEach(function (c) {
-      var box = el("div", "cat-pv", "<div class='cp-ico'>" + (c.icon || "●") + "</div>" +
-        "<div class='cp-body'><div class='cp-title'>" + esc(c.title) + "</div>" +
-        "<div class='cp-n'>" + K.conceptsByCategory(c.id).length + " 个概念</div></div>");
-      box.style.setProperty("--catc", c.color || "#5b6cff");
-      box.addEventListener("click", function () { go("#/learn"); });
-      catGrid.appendChild(box);
-    });
-    w.appendChild(catGrid);
+    // 知识地图预览（小型嵌套示意，跳转到完整地图）
+    var preview = el("div", "block");
+    preview.innerHTML = "<div class='block-title'><h2>🕸 知识地图预览</h2><span>AI 的世界是一层层包含的，点开看完整地图</span></div>";
+    w.appendChild(preview);
+    var pvBox = el("div", "viz-mount dash-mapv");
+    preview.appendChild(pvBox);
+    if (Viz && Viz.render) {
+      setTimeout(function () { Viz.render(pvBox, "ai-world-map", { compact: true }); }, 0);
+    }
+    var pvBtn = el("button", "dash-btn ghost dash-maplink", "打开完整知识地图 →");
+    pvBtn.addEventListener("click", function () { go("#/map"); });
+    preview.appendChild(pvBtn);
   }
 
   /* ==========================================================
@@ -331,7 +320,9 @@
     if (lesson && lesson.sections) {
       var body = el("div", "lesson-body");
       lesson.sections.forEach(function (sec, si) {
-        body.appendChild(renderSection(sec, si));
+        var sEl = renderSection(sec, si);
+        if (sEl && sEl.tagName) sEl.id = "sec" + si;
+        body.appendChild(sEl);
       });
       root.appendChild(body);
     } else {
@@ -364,6 +355,9 @@
   function renderSection(sec, si) {
     var t = sec.type;
     switch (t) {
+      case "opening": return secOpening(sec, si);
+      case "exercise": return secExercise(sec, si);
+      case "check": return secCheck(sec, si);
       case "oneline": return secOneline(sec, si);
       case "why": return secWhy(sec, si);
       case "visual": return secVisual(sec, si);
@@ -394,8 +388,147 @@
     oneline: "一句话看懂", why: "为什么需要它", visual: "动手看看",
     intuition: "直觉理解", how: "它是怎么工作的", deep: "深入一点",
     realworld: "现实中的应用", compare: "对比区分", mistakes: "常见误解",
+    opening: "开场问题", exercise: "你猜一下", check: "结课检测",
     practice: "动手练 + 小测验", connection: "和前面/后面的联系"
   };
+
+  /* 滚动到指定锚点（用于"答错跳回对应教学段落"） */
+  function scrollToTarget(t) {
+    var id = t || "";
+    var node = document.getElementById(id);
+    if (!node && /^sec\d/.test(id)) { /* already raw id */ }
+    else if (!node && /^\d+$/.test(id)) { node = document.getElementById("sec" + id); }
+    if (node) {
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
+      // 高亮提示
+      node.classList.remove("flash");
+      void node.offsetWidth;
+      node.classList.add("flash");
+    }
+  }
+  // 跳回可读提示按钮
+  function jumpButton(target, label) {
+    var b = el("button", "jump-btn", "📖 " + (label || "回讲义，再看一遍这一段"));
+    b.addEventListener("click", function () { scrollToTarget(target); });
+    return b;
+  }
+
+  /* ---------- 开场问题 ---------- */
+  function secOpening(sec, si) {
+    var w = secShell(si, "opening");
+    var q = el("div", "opening");
+    q.innerHTML =
+      "<div class='op-tag'>🎯 先回答一个问题" + (sec.sub || "") + "</div>" +
+      "<div class='op-q'>" + esc(sec.question) + "</div>" +
+      (sec.guess ? "<div class='op-guess'>🤔 想好了吗？<b>" + esc(sec.guess) + "</b> —— 但先别翻答案，试着用自己的话先说一遍，再往下看。</div>" : "") +
+      (sec.next ? "<div class='op-next'>👉 " + esc(sec.next) + "</div>" : "");
+    w.appendChild(q);
+    return w;
+  }
+
+  /* ---------- 课中练习（你猜一下 / 下一步会发生什么） ---------- */
+  function secExercise(sec, si) {
+    var w = secShell(si, "exercise");
+    var item = el("div", "ex-item");
+    var opts = sec.opts || [];
+    item.innerHTML = "<div class='ex-q'><span class='ex-tag'>你猜一下</span> " + esc(sec.prompt) + "</div>";
+    var oBox = el("div", "quiz-opts");
+    (opts || []).forEach(function (op, oi) {
+      var b = el("button", "quiz-opt", esc(op));
+      b.dataset.oi = oi;
+      b.addEventListener("click", function () {
+        if (item.classList.contains("answered")) return;
+        item.classList.add("answered");
+        var correct = sec.a === oi;
+        b.classList.add(correct ? "right" : "wrong");
+        if (!correct) opts.forEach(function (x, xi) { if (xi === sec.a) oBox.querySelectorAll(".quiz-opt")[xi].classList.add("right"); });
+        var ex = el("div", "quiz-explain" + (correct ? " ok" : " no"),
+          (correct ? "✅ 猜对了。" : "❌ 其实答案更接近「" + esc(opts[sec.a]) + "」。") + " " + esc(sec.explain || ""));
+        item.appendChild(ex);
+        if (!correct && sec.jump) {
+          var jb = jumpButton(sec.jump, sec.jumpLabel || "回到讲义，再看一遍相关内容");
+          item.appendChild(jb);
+        }
+      });
+      oBox.appendChild(b);
+    });
+    item.appendChild(oBox);
+    w.appendChild(item);
+    return w;
+  }
+
+  /* ---------- 结课检测（5 题，答错跳回教学段落） ---------- */
+  function secCheck(sec, si) {
+    var w = secShell(si, "check", sec.title || "结课检测：你真的懂了吗");
+    var qs = sec.questions || [];
+    if (!qs.length) return w;
+    if (sec.intro) w.appendChild(el("p", "check-intro", esc(sec.intro)));
+    var score = 0, answered = 0;
+    var stat = el("div", "check-stat");
+    stat.innerHTML = "进度 <b id='chkC'>0</b> / " + qs.length + " · 答对 <b id='chkS'>0</b> · <span class='chk-tip'>答错会带你回到对应段落复习，再看一遍就能重新作答。</span>";
+    w.appendChild(stat ? stat : null);
+
+    var list = el("div", "check-list");
+    qs.forEach(function (q, qi) {
+      var item = el("div", "quiz-item chk-item");
+      item.innerHTML = "<div class='quiz-q'><span class='qi'>" + (qi + 1) + ".</span> " + esc(q.q) + "</div>";
+      var oBox = el("div", "quiz-opts");
+      (q.opts || []).forEach(function (op, oi) {
+        var b = el("button", "quiz-opt", esc(op));
+        b.dataset.oi = oi;
+        b.addEventListener("click", function () {
+          // 已答对就锁定
+          if (item.classList.contains("got")) return;
+          // 清除上一次的解析/跳回提示
+          $$(".quiz-explain,.jump-btn", item).forEach(function (n) { n.remove(); });
+          var correct = q.a === oi;
+          $$(".quiz-opt", oBox).forEach(function (x) { x.classList.remove("wrong", "right"); });
+          b.classList.add(correct ? "right" : "wrong");
+          if (!correct) {
+            oBox.querySelectorAll(".quiz-opt")[q.a].classList.add("right");
+            item.classList.add("missed");
+          }
+          var ex = el("div", "quiz-explain" + (correct ? " ok" : " no"),
+            (correct ? "✅ 回答正确。" : "❌ 正确答案是「" + esc(q.opts[q.a]) + "」。" ) + " " + esc(q.explain || "") +
+            (correct ? "" : " 请回到相关段落复习后再回来答这道题。"));
+          item.appendChild(ex);
+          if (!correct) {
+            if (q.jump) item.appendChild(jumpButton(q.jump, "回到讲义：复习「" + esc(q.jumpLabel || "这段内容") + "」再回来"));
+            else item.appendChild(jumpButton("sec" + defaultsForJump(q, qi), "回到详情页顶部复习"));
+          } else {
+            item.classList.add("got");
+            item.classList.remove("missed");
+            score++;
+            answered++;
+            var c = document.getElementById("chkC"), s = document.getElementById("chkS");
+            if (c && c.parentNode) c.textContent = answered;
+            if (s && s.parentNode) s.textContent = score;
+            if (answered === qs.length) finishCheck(w, qs.length, score, sec);
+          }
+        });
+        oBox.appendChild(b);
+      });
+      item.appendChild(oBox);
+      list.appendChild(item);
+    });
+    w.appendChild(list);
+    return w;
+  }
+  // 默认跳回目标：没有显式 jump 时，回到本课"它是怎么工作的"段（按 13 段规范，该段通常在下标 5）
+  function defaultsForJump(q, qi) {
+    return 5;
+  }
+  function finishCheck(w, total, score, sec) {
+    var box = el("div", "check-done" + (score === total ? " all" : ""));
+    box.innerHTML = score === total
+      ? "<div class='cd-ico'>🎉</div><div class='cd-t'>太棒了，全部答对！你对本课的理解已经成立。</div>" +
+        (sec.done ? "<div class='cd-note'>" + esc(sec.done) + "</div>" : "") +
+        (sec.nextLesson ? "<button class='dash-btn primary' data-nx>下一课 →</button>" : "")
+      : "<div class='cd-ico'>💪</div><div class='cd-t'>答对 " + score + " / " + total + "。有答错的题，题目下方都有『回到讲义』按钮，复习后再回来把它们补上。</div>";
+    var nx = box.querySelector("[data-nx]");
+    if (nx) nx.addEventListener("click", function () { if (sec.nextLesson) go("#/lesson/" + sec.nextLesson); });
+    w.appendChild(box);
+  }
 
   function secOneline(sec, si) {
     var w = secShell(si, "oneline");
@@ -442,6 +575,7 @@
     var flow = el("div", "how-flow");
     (sec.steps || []).forEach(function (st, i) {
       var card = el("div", "how-card");
+      card.id = "sec" + si + "-step" + i;
       card.innerHTML =
         "<div class='how-idx'>" + (i + 1) + "</div>" +
         "<div class='how-in'><b>输入</b><p>" + esc(st.in) + "</p></div>" +
@@ -650,9 +784,8 @@
     var statRow = el("div", "exp-stats");
     statRow.innerHTML =
       "<span>共 <b>" + K.concepts.length + "</b> 个概念</span>" +
-      "<span>已就绪 <b style='color:var(--good)'>" + K.meta.ready + "</b></span>" +
-      "<span>制作中 <b style='color:#c77f1e'>" + K.meta.wip + "</b></span>" +
-      "<span>规划中 <b>" + K.meta.planned + "</b></span>";
+      "<span>" + K.categories.length + " 大领域</span>" +
+      "<span>" + L.readyLessons().length + " 门已上线课程</span>";
     filterBar.appendChild(statRow);
     w.appendChild(filterBar);
 
@@ -753,25 +886,27 @@
   function renderLabs() {
     var w = pageShell(
       "<h1>交互实验</h1>",
-      "<p class='pg-sub'>所有旗舰课的动手实验集中在这里，无需进入课程即可直接操作。</p>"
+      "<p class='pg-sub'>把六门旗舰课里的可视化实验集中在这里，无需进入课程即可直接动手操作。</p>"
     );
     var Lb = L.flagshipLessons();
     var any = false;
     Lb.forEach(function (ls) {
       if (!ls || !ls.sections) return;
       ls.sections.forEach(function (sec) {
-        if (sec.type === "practice" && sec.lab && sec.lab.kind) {
+        // 旗舰课的 visual 段携带可交互的 kind（embedding-space / rag-pipeline / agent-loop 等）
+        if (sec.type === "visual" && sec.kind) {
           any = true;
+          var kind = sec.kind;
           var box = el("div", "lab-card");
           box.innerHTML = "<div class='lab-card-head'><a href='#/lesson/" + esc(ls.id) + "' class='lab-lesson'>📖 " + esc(ls.title) + "</a>" +
-            "<span class='lab-card-title'>🧪 " + esc(sec.lab.title || "实验") + "</span></div>";
-          box.insertAdjacentHTML("beforeend", sec.lab.desc ? "<div class='lab-desc'>" + esc(sec.lab.desc) + "</div>" : "");
+            "<span class='lab-card-title'>🧪 " + esc(sec.title || "实验") + "</span></div>";
+          if (sec.hint) box.insertAdjacentHTML("beforeend", "<div class='lab-desc'>" + esc(sec.hint) + "</div>");
           var mount = el("div", "viz-mount");
-          mount.id = "labcard-" + ls.id + "-" + Math.random().toString(36).slice(2, 7);
+          mount.id = "labcard-" + ls.id + "-" + kind;
           box.appendChild(mount);
           w.appendChild(box);
           if (Viz && Viz.render) {
-            (function (m, k) { setTimeout(function () { Viz.render(m, k, {}); }, 0); })(mount, sec.lab.kind);
+            (function (m, k) { setTimeout(function () { Viz.render(m, k, {}); }, 0); })(mount, kind);
           }
         }
       });
@@ -787,19 +922,32 @@
   function renderReview() {
     var w = pageShell(
       "<h1>复习 · 测验汇总</h1>",
-      "<p class='pg-sub'>把六门旗舰课的所有小测验集中起来，检验你是否真的懂了；点选项即可查看解析。</p>"
+      "<p class='pg-sub'>把六门旗舰课的「课中练习」和「结课检测」集中起来，检验你是否真的懂了；点选项即可查看解析。</p>"
     );
     var total = 0, answered = 0;
     var statbar = el("div", "rv-stat");
     var collected = [];
     L.flagshipLessons().forEach(function (ls) {
       if (!ls || !ls.sections) return;
+      var lessonMeta = L.getCurriculumLessonMeta(ls.id);
+      var chapter = (lessonMeta && lessonMeta.title) || ls.title;
       ls.sections.forEach(function (sec) {
-        if (sec.type === "practice" && sec.quiz) {
-          var lessonMeta = L.getCurriculumLessonMeta(ls.id);
-          sec.quiz.forEach(function (q) {
+        if (sec.type === "exercise" && sec.prompt) {
+          // 课中练习：单题 {prompt, opts, a, explain}
+          total++;
+          collected.push({
+            q: sec.prompt, opts: sec.opts || [], a: sec.a,
+            explain: sec.explain || "", lesson: ls, chapter: chapter + " · 课中练习"
+          });
+        }
+        if (sec.type === "check" && sec.questions) {
+          // 结课检测：questions 数组
+          sec.questions.forEach(function (q, qi) {
             total++;
-            collected.push({ q: q, lesson: ls, chapter: (lessonMeta && lessonMeta.title) || ls.title });
+            collected.push({
+              q: q.q, opts: q.opts || [], a: q.a,
+              explain: q.explain || "", lesson: ls, chapter: chapter + " · 结课检测 " + (qi + 1)
+            });
           });
         }
       });
@@ -812,7 +960,7 @@
       var card = el("div", "rv-card");
       card.innerHTML = "<div class='rv-head'><a href='#/lesson/" + esc(it.lesson.id) + "' class='rv-lesson'>📖 " + esc(it.lesson.title) + "</a>" +
         "<span class='rv-ch'>" + esc(it.chapter || "") + "</span></div>";
-      card.appendChild(renderQuiz(it.q, i));
+      card.appendChild(renderQuiz({ q: it.q, opts: it.opts, a: it.a, explain: it.explain }, i));
       card.dataset.qid = i;
       box.appendChild(card);
     });

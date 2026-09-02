@@ -944,3 +944,107 @@ code{
   .tf-node,.rag-node{min-width:70px}
   .viz-input{min-width:120px;flex:1}
 }
+
+/* ============================================================
+ * Phase 2.5 · 长课时新段落：开场问题 / 你猜一下 / 结课检测
+ * ============================================================ */
+.sec-opening .sec-label{color:#ff7043}
+.opening{
+  background:linear-gradient(135deg,var(--primary-soft),var(--accent-soft));
+  border:1px solid var(--line);border-radius:16px;padding:20px 22px;
+}
+.op-tag{font-size:11.5px;font-weight:800;color:#ff7043;letter-spacing:.5px;margin-bottom:10px}
+.op-q{font-size:20px;font-weight:800;line-height:1.5;color:var(--text);margin-bottom:12px}
+.op-guess{font-size:13.5px;color:var(--text-2);background:var(--bg-card);border:1px dashed var(--line);border-radius:10px;padding:10px 13px;margin-bottom:10px}
+.op-next{font-size:13px;color:var(--text-3)}
+
+.sec-exercise .sec-label{color:var(--primary)}
+.ex-item{
+  background:var(--bg-card);border:1px solid var(--line);border-left:4px solid var(--primary);
+  border-radius:13px;padding:14px 16px;
+}
+.ex-tag{display:inline-block;font-size:11px;font-weight:800;background:var(--primary);color:#fff;border-radius:6px;padding:2px 8px;margin-right:8px;vertical-align:middle}
+.ex-q{font-size:15.5px;font-weight:700;margin-bottom:12px;line-height:1.5}
+.ex-item .quiz-opt{border-color:var(--line)}
+
+.sec-check .sec-label{color:var(--good)}
+.check-intro{font-size:13.5px;color:var(--text-2);margin-bottom:12px}
+.check-stat{font-size:13.5px;font-weight:700;color:var(--text);background:var(--bg-soft);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:14px}
+.check-stat b{color:var(--primary)}
+.chk-tip{font-weight:500;color:var(--text-3);font-size:12px}
+.chk-item{border-left:4px solid var(--good)}
+.chk-item.missed{border-left-color:#ff7043}
+.chk-item.got{border-left-color:var(--good);opacity:.92}
+.check-done{
+  margin-top:16px;padding:20px 22px;border-radius:14px;text-align:center;
+  background:var(--bg-soft);border:1px solid var(--line);
+}
+.check-done.all{background:linear-gradient(135deg,var(--good-soft),var(--accent-soft));border-color:var(--good)}
+.cd-ico{font-size:30px}
+.cd-t{font-size:15.5px;font-weight:800;color:var(--text);margin:8px 0 4px;line-height:1.5}
+.cd-note{font-size:13px;color:var(--text-2);margin-bottom:10px}
+.check-done .dash-btn{margin-top:10px}
+
+/* 跳回讲义按钮 */
+.jump-btn{
+  margin:10px 6px 0 0;padding:8px 14px;border-radius:9px;cursor:pointer;
+  background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent);
+  font-weight:700;font-size:13px;transition:.2s;
+}
+.jump-btn:hover{background:var(--accent);color:#fff}
+.sec.flash{animation:secFlash 1.6s ease}
+@keyframes secFlash{0%{box-shadow:0 0 0 4px var(--accent-soft)}100%{box-shadow:0 0 0 0 transparent}}
+
+/* Dashboard：进度条 + 地图预览 */
+.dash-progress{
+  background:var(--bg-card);border:1px solid var(--line);border-radius:14px;
+  padding:14px 18px;margin-bottom:18px;
+}
+.dp-head{display:flex;justify-content:space-between;font-size:13.5px;font-weight:700;color:var(--text-2);margin-bottom:8px}
+.dp-head b{color:var(--primary);font-size:14px}
+.dp-bar{height:10px;border-radius:6px;background:var(--bg-soft);overflow:hidden;margin-bottom:8px}
+.dp-bar i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--primary),var(--accent));transition:width .6s}
+.dp-note{font-size:12.5px;color:var(--text-3)}
+.dash-mapv{min-height:240px}
+.dash-maplink{margin-top:12px;width:100%}
+.cat-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+
+/* RAG 真·输入实验室 */
+.rag-input{display:flex;flex-direction:column;gap:10px;margin-bottom:10px}
+.rag-fld{display:flex;flex-direction:column;gap:5px}
+.rag-fld label{font-size:12.5px;font-weight:700;color:var(--text-2)}
+.rag-fld textarea{
+  resize:vertical;min-height:84px;font:inherit;font-size:13px;
+  background:var(--bg-card);color:var(--text);border:1px solid var(--line);
+  border-radius:9px;padding:9px 11px;
+}
+.rag-out{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.rag-step{font-size:13px;color:var(--text-2);line-height:1.6;background:var(--bg-soft);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.rs-t{color:var(--accent);font-weight:800}
+.chunk-chip{
+  font-size:12.5px;background:var(--bg-card);border:1px solid var(--line);border-radius:8px;
+  padding:6px 10px;color:var(--text-2);margin-left:14px;max-width:92%;
+}
+.chunk-chip.hit{border-color:var(--accent);background:var(--accent-soft);color:var(--text)}
+.ctx-box,.answer-box{
+  background:var(--bg-card);border:1px dashed var(--line);border-radius:9px;
+  padding:9px 12px;margin-top:6px;font-size:12.8px;color:var(--text);line-height:1.6;
+}
+.answer-box{border-color:var(--good);background:var(--good-soft)}
+.answer-cite{font-size:12px;color:var(--text-3);margin-top:5px}
+.rag-annotate .rag-ann{font-size:13px;color:var(--text-2);background:var(--bg-soft);border-top:1px solid var(--line);padding:10px 2px 0;line-height:1.7}
+
+/* Agent 循环模拟器 */
+.ag-scene{font-size:11.5px;color:var(--text-3);margin-left:8px;font-weight:500}
+.ag-choice{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.ag-clue{font-size:13.5px;font-weight:700;color:var(--text);background:var(--bg-card);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.ag-tools{display:flex;flex-direction:column;gap:7px}
+.ag-tool-btn{
+  text-align:left;padding:9px 13px;border-radius:9px;border:1px solid var(--line);
+  background:var(--bg-card);color:var(--text);cursor:pointer;font-size:13px;transition:.2s;
+}
+.ag-tool-btn:hover:not(:disabled){border-color:var(--primary);background:var(--primary-soft)}
+.ag-tool-btn:disabled{opacity:.5;cursor:not-allowed}
+.ag-round.good{border-color:var(--good)}
+.ag-round.bad{border-color:#ff7043;background:color-mix(in srgb,#ff7043 8%,var(--bg-card))}
+.ag-round.hint{color:var(--text-3);font-style:italic;border-style:dashed}
