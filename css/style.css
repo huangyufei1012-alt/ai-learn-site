@@ -406,6 +406,12 @@ code{
   color:#fff;box-shadow:0 8px 22px -8px color-mix(in srgb,var(--primary) 60%,transparent);
 }
 .dash-btn.primary:hover{transform:translateY(-1px);box-shadow:0 12px 26px -8px color-mix(in srgb,var(--primary) 65%,transparent)}
+/* 锁定态：Quiz 未全部答对时，主按钮不可操作（视觉 + 交互 + 键盘都禁用） */
+.dash-btn.locked,.dash-btn.locked:hover{
+  opacity:.55;transform:none;cursor:not-allowed;
+  background:var(--line-strong);box-shadow:none;color:var(--text-3);
+}
+.dash-btn[aria-disabled="true"]{cursor:not-allowed}
 .dash-btn.ghost{
   background:var(--bg-card);border:1px solid var(--line);color:var(--text-2);
 }
@@ -526,6 +532,12 @@ code{
 .lesson-foot{
   display:flex;gap:12px;flex-wrap:wrap;margin-top:30px;padding-top:22px;
   border-top:1px dashed var(--line-strong);
+}
+/* 统一主按钮下方的结课 Quiz 提示 */
+.foot-quiz-hint{
+  flex-basis:100%;font-size:12.5px;color:var(--text-3);line-height:1.6;
+  padding:8px 12px;border-radius:10px;background:var(--bg-soft);
+  border-left:3px solid var(--warn);
 }
 
 /* ---------- 11 段式 section ---------- */
@@ -838,6 +850,13 @@ code{
   padding:14px;box-shadow:var(--shadow-sm);margin-top:10px;
 }
 .viz-svg{width:100%;height:auto;display:block}
+/* Embedding 真向量 + 余弦对照 */
+.emb-real{margin-top:12px;padding:12px 14px;border:1px dashed var(--line-strong);border-radius:12px;background:var(--bg-soft)}
+.emb-real-t{font-size:12.5px;font-weight:800;color:var(--primary-strong);margin-bottom:8px}
+.emb-real-row{font-size:12.5px;color:var(--text-2);line-height:1.9;font-family:var(--mono)}
+.emb-real-row code{background:var(--bg-card);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--primary-strong)}
+.emb-real-cos{font-size:13px;font-weight:700;color:var(--text);margin-top:8px;line-height:1.7}
+.emb-real-note{font-size:12.5px;color:var(--text-3);margin-top:8px;line-height:1.7}
 .viz-detail{margin-top:10px;font-size:13.5px;color:var(--text-2);min-height:44px}
 .vd-name{font-size:15px;font-weight:800;color:var(--primary-strong)}
 .vd-name small{font-weight:700;opacity:.6;margin-left:4px}
@@ -901,6 +920,16 @@ code{
 .tf-name{font-size:12.5px;font-weight:700;text-align:center;line-height:1.3}
 .tf-arrow{color:var(--text-3);font-weight:800;font-size:14px;flex:none}
 .tf-detail{margin-top:12px;background:var(--bg-soft);border:1px solid var(--line);border-radius:12px;padding:12px 15px;min-height:52px}
+/* 每步输入/输出 + 子模块说明 + 完整架构 */
+.tf-io{margin-top:10px;display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--text-2);line-height:1.7}
+.tf-io b{color:var(--primary-strong)}
+.tf-note-note{margin-top:10px;font-size:12.5px;line-height:1.7;color:var(--text-2);background:color-mix(in srgb,var(--accent) 10%,var(--bg-card));border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:9px 12px}
+.tf-full{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.tf-full-t{font-size:13px;font-weight:800;color:var(--primary-strong);margin-bottom:2px}
+.tf-full-row{display:flex;gap:12px;align-items:flex-start;background:var(--bg-card);border:1px solid var(--line);border-radius:10px;padding:9px 13px}
+.tf-full-row.tf-hl{border-color:color-mix(in srgb,var(--primary) 40%,transparent);background:var(--primary-soft)}
+.tf-full-k{flex:none;min-width:130px;font-size:12.5px;font-weight:800;color:var(--text)}
+.tf-full-v{font-size:12.5px;color:var(--text-2);line-height:1.6}
 
 .rag-flow{display:flex;align-items:center;flex-wrap:wrap;gap:6px;justify-content:center}
 .rag-node{
@@ -1026,6 +1055,7 @@ code{
   padding:6px 10px;color:var(--text-2);margin-left:14px;max-width:92%;
 }
 .chunk-chip.hit{border-color:var(--accent);background:var(--accent-soft);color:var(--text)}
+.chunk-chip.miss{border-color:var(--warn);background:var(--warn-soft);color:var(--text-2);font-style:italic}
 .ctx-box,.answer-box{
   background:var(--bg-card);border:1px dashed var(--line);border-radius:9px;
   padding:9px 12px;margin-top:6px;font-size:12.8px;color:var(--text);line-height:1.6;
@@ -1133,6 +1163,42 @@ code{
 .toc-st.ok{color:var(--good);background:var(--good-soft)}
 .toc-st.plan{color:var(--text-3);background:var(--bg-soft)}
 .toc-note{margin-top:18px;font-size:12.5px;color:var(--text-3);text-align:center}
+
+/* —— 课程体系三分区（核心路径 / 下一批 / 知识地图） —— */
+/* (A) 核心路径：高亮、始终展开、首行无边线 */
+.toc-core{border-color:color-mix(in srgb,var(--primary) 55%,transparent);box-shadow:var(--shadow-sm)}
+.toc-core .toc-ch-head{border-bottom:1px solid var(--line)}
+.toc-core .toc-no{background:var(--primary);color:#fff}
+.toc-reveal{max-height:none !important;overflow:visible}
+.toc-reveal .toc-row:first-child{border-top:none}
+/* (B) 下一批：虚线描边、柔和底色、标题默认光标（头部不可点开） */
+.toc-next{border-style:dashed;border-color:var(--line-strong)}
+.toc-next .toc-ch-head{background:var(--bg-soft);cursor:default}
+.toc-no.plan{color:var(--text-3);background:var(--bg-soft)}
+/* (C) 知识地图：整卡链接 */
+.toc-map{border-style:dashed;border-color:var(--line-strong);background:var(--bg-soft)}
+.toc-ch-head{cursor:default}
+.toc-map-link{display:flex;align-items:center;gap:13px;padding:16px 18px;border-radius:16px;background:var(--bg-card);border:1px solid var(--line);transition:.16s}
+.toc-map-link:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 45%,transparent);box-shadow:var(--shadow-sm)}
+.toc-map-link:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.toc-map-link div{flex:1;min-width:0}
+.toc-map-link b{display:block;font-size:15px;font-weight:800}
+.toc-map-link i{font-size:12.5px;color:var(--text-3);font-style:normal}
+.toc-map-link em{font-size:12.5px;color:var(--primary);font-weight:700;font-style:normal;flex:none}
+/* 已学课程：标题转柔和 */
+.toc-row.done .toc-title{color:var(--text-2)}
+
+/* 键盘可访问：可见焦点环（a11y） */
+.toc-row[tabindex="0"]:focus-visible{
+  outline:2px solid var(--primary);outline-offset:-2px;
+  background:var(--bg-hover);
+}
+.dash-btn:focus-visible,
+.lp-ch-item[tabindex="0"]:focus-visible,
+.lp-ch-label[tabindex="0"]:focus-visible{
+  outline:2px solid var(--primary);outline-offset:2px;
+}
+.dash-btn.locked:focus-visible{outline-style:dashed;outline-color:var(--text-3)}
 
 /* ============================================================
    Lesson 页 · 三栏连续叙事

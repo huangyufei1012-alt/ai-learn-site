@@ -73,6 +73,9 @@
   }
   function isDone(id) { return !!(progress.done && progress.done[id]); }
 
+  /* 当前课程测验上下文的共享状态（用于 P0-4 统一主按钮） */
+  var lessonCtx = null;
+
   // 主线链（旗舰课 + 最后一门 AI Coding）
   var MAINLINE = ["l00-ai-world", "l-embedding", "l-attention", "l-transformer", "l-rag", "l-agent", "l22-ai-coding"];
 
@@ -250,7 +253,7 @@
     hero.innerHTML =
       "<div class='hh-badge'>AI 学堂</div>" +
       "<h1>从零开始，一步一步看懂 AI</h1>" +
-      "<p class='hh-sub'>不需要任何基础，打开就能学。一课一课往下走，<b>AI 会一步一步讲给你听</b>。</p>" +
+      "<p class='hh-sub'>首批 <b>6 节核心课程</b>已上线：从一张 AI 世界总图起步，一路走到 RAG 与 Agent。不需要任何基础，打开就能学，<b>一课一课往下走</b>。</p>" +
       (haveLast
         ? "<button class='hh-cta' id='hhGo'>继续学习 · " + esc(L.getLesson(lastId).title) + " <span class='hh-arr'>→</span></button>"
         : "<button class='hh-cta' id='hhGo'>🚀 开始学习</button>") +
@@ -258,9 +261,9 @@
     w.appendChild(hero);
     $("#hhGo").addEventListener("click", function () { go("#/lesson/" + (lastId || "l00-ai-world")); });
 
-    // 课程路径：从零看懂 AI（12 章）
+    // 课程地图：完整路径总览（12 章规划；已就绪课标亮）
     var path = el("div", "block home-path");
-    path.innerHTML = "<div class='block-title'><h2>课程路径 · 从零看懂 AI</h2><span>共 12 章，按顺序往下学</span></div>";
+    path.innerHTML = "<div class='block-title'><h2>课程地图 · 从零看懂 AI</h2><span>共 12 章规划 · 首批 6 节核心课程已上线</span></div>";
     w.appendChild(path);
     var steps = el("ol", "hp-steps");
     MAIN_PATH.forEach(function (ch, ci) {
@@ -288,7 +291,7 @@
   function renderLearn() {
     var w = pageShell(
       "<h1>课程目录</h1>",
-      "<p class='pg-sub'>从零看懂 AI · 一条主线 12 章。按顺序往下学，随时回来查看进度。</p>"
+      "<p class='pg-sub'>从零看懂 AI · 一条主线。首批 <b>6 节核心课程</b>已上线，沿序往下学，其余课程会陆续上架。</p>"
     );
 
     var doneCount = Object.keys(progress.done || {}).filter(function (k) { return L.getLesson(k); }).length;
@@ -299,35 +302,74 @@
     w.appendChild(prog);
 
     var curLesson = (progress.lastLesson && L.getLesson(progress.lastLesson)) ? progress.lastLesson : null;
+
+    // 按主线顺序收集：已就绪（核心路径） / 规划中（下一批）
+    var flat = pathFlat();
+    var readyList = flat.filter(function (x) { return L.getLesson(x.lesson.id); });
+    var planList = flat.filter(function (x) { return !L.getLesson(x.lesson.id); });
+
     var toc = el("div", "toc");
-    MAIN_PATH.forEach(function (ch, ci) {
-      var sect = el("section", "toc-chapter" + (curLesson && chapterIdOf(curLesson) === ci ? " open" : ""));
-      var head = el("div", "toc-ch-head");
-      head.innerHTML = "<span class='toc-no'>第 " + esc(ch.no) + " 章</span><b>" + esc(ch.title) + "</b><span class='toc-cnt'>" + ch.lessons.length + " 课</span>";
-      head.addEventListener("click", function () { sect.classList.toggle("open"); });
-      sect.appendChild(head);
-      var list = el("ol", "toc-list");
-      ch.lessons.forEach(function (l) {
-        var full = L.getLesson(l.id);
-        var ready = !!full;
-        var done = isDone(l.id);
-        var row = el("li", "toc-row" + (done ? " done" : "") + (ready ? "" : " soon") + (curLesson === l.id ? " cur" : "") + (ready ? " clickable" : ""));
-        row.innerHTML = "<span class='toc-num'>" + esc(l.no) + "</span>" +
-          "<span class='toc-title'>" + esc(l.title) + "</span>" +
-          (done ? "<span class='toc-st ok'>✔ 已学</span>" : (ready ? "<span class='toc-st'>开始</span>" : "<span class='toc-st plan'>规划中</span>"));
-        row.addEventListener("click", function () { if (ready) { setLastLesson(l.id); go("#/lesson/" + l.id); } });
-        list.appendChild(row);
-      });
-      sect.appendChild(list);
-      toc.appendChild(sect);
+
+    // (A) 核心路径：已就绪课程（始终展开、可键盘操作）
+    var zoneA = el("section", "toc-chapter open toc-core");
+    zoneA.innerHTML = "<div class='toc-ch-head'><span class='toc-no'>核心路径</span><b>首批 " + readyTotal + " 节 · 现在就能学</b><span class='toc-cnt'>沿序往下</span></div>";
+    var listA = el("ol", "toc-list toc-reveal");
+    readyList.forEach(function (x) {
+      var l = x.lesson, id = l.id;
+      var done = isDone(id);
+      var row = el("li", "toc-row" + (done ? " done" : "") + (curLesson === id ? " cur" : "") + " clickable");
+      row.innerHTML = "<span class='toc-num'>" + esc(l.no) + "</span>" +
+        "<span class='toc-title'>" + esc(l.title) + "</span>" +
+        (done ? "<span class='toc-st ok'>✔ 已学</span>" : "<span class='toc-st'>开始</span>");
+      // 键盘可访问
+      row.setAttribute("role", "button");
+      row.setAttribute("tabindex", "0");
+      row.setAttribute("aria-label", "开始学习：" + l.title);
+      function openLesson() { setLastLesson(id); go("#/lesson/" + id); }
+      row.addEventListener("click", openLesson);
+      row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openLesson(); } });
+      listA.appendChild(row);
     });
+    zoneA.appendChild(listA);
+    toc.appendChild(zoneA);
+
+    // (B) 下一批：规划中课程（不展开，仅列标题）
+    var nextBatch = planList.slice(0, 6);
+    var zoneB = el("section", "toc-chapter toc-next");
+    zoneB.innerHTML = "<div class='toc-ch-head'><span class='toc-no plan'>下一批</span><b>即将上线 · 全站共 " + flat.length + " 门</b><span class='toc-cnt'>编写中</span></div>";
+    var listB = el("ol", "toc-list toc-plan");
+    nextBatch.forEach(function (x) {
+      var l = x.lesson;
+      var row = el("li", "toc-row soon");
+      row.innerHTML = "<span class='toc-num'>" + esc(l.no) + "</span>" +
+        "<span class='toc-title'>" + esc(l.title) + "</span>" +
+        "<span class='toc-st plan'>即将上线</span>";
+      row.setAttribute("aria-disabled", "true");
+      row.setAttribute("title", "该课程规划中，暂不可学习");
+      listB.appendChild(row);
+    });
+    zoneB.appendChild(listB);
+    toc.appendChild(zoneB);
+
+    // (C) 完整知识地图
+    var zoneC = el("section", "toc-chapter toc-map");
+    zoneC.innerHTML = "<a class='toc-map-link' href='#/map'><span class='aux-ico'>🧭</span><div><b>完整知识地图</b><i>看全部 " + flat.length + " 门课在整条主线上的位置</i></div><em>打开 →</em></a>";
+    toc.appendChild(zoneC);
+
     w.appendChild(toc);
-    w.appendChild(el("p", "toc-note", "标注「规划中」的课程正在编写，会陆续上线。已就绪的课程随时可以点开学习。"));
+    w.appendChild(el("p", "toc-note", "已就绪课程随时可学；「即将上线」的在编写中，会陆续开放。想提前了解全貌，可先看知识地图。"));
   }
   function chapterIdOf(id) {
     var a = pathFlat();
     for (var i = 0; i < a.length; i++) if (a[i].lesson.id === id) return a[i].chapterIdx;
     return -1;
+  }
+  // 返回某课中指定类型段的下标（用于滚动定位）
+  function sectionIndex(id, type) {
+    var l = L.getLesson(id);
+    if (!l || !l.sections) return 0;
+    for (var i = 0; i < l.sections.length; i++) if (l.sections[i].type === type) return i;
+    return 0;
   }
 
   /* ==========================================================
@@ -345,6 +387,16 @@
 
   function buildLessonPage(lesson, meta, id) {
     var root = el("div", "page-inner lesson-page three-col");
+
+    // 是否含结课测验：有 check 段则需测验通过后才能解锁"完成本课"
+    var checkSec = null;
+    if (lesson && lesson.sections) {
+      for (var si0 = 0; si0 < lesson.sections.length; si0++) {
+        if (lesson.sections[si0].type === "check") { checkSec = lesson.sections[si0]; break; }
+      }
+    }
+    var quizTotal = (checkSec && checkSec.questions) ? checkSec.questions.length : 0;
+    lessonCtx = { id: id, hasQuiz: quizTotal > 0, quizTotal: quizTotal, quizPassed: false, btn: null, statusEl: null };
 
     // 面包屑：课程 → 第 X 章 · 章名 → 本课
     var chObj = pathChapterOf(id);
@@ -365,7 +417,7 @@
       "<div class='lp-meta'>" +
         (lesson && lesson.estTime ? "<span class='lm'>⏱ 预计 " + esc(lesson.estTime) + "</span>" : "") +
         (lesson && lesson.difficulty ? "<span class='lm'>难度 " + lesson.difficulty + " / 5</span>" : "") +
-        "<span class='lm lm-status st-" + (done ? "done" : (progress.lastLesson === id ? "doing" : "todo")) + "'>" + status + "</span>" +
+        "<span id='lpStatus' class='lm lm-status st-" + (done ? "done" : (progress.lastLesson === id ? "doing" : "todo")) + "'>" + status + "</span>" +
       "</div>" +
       "<h1>" + esc(title) + "</h1>" +
       (lesson && lesson.subtitle ? "<p class='lh-subtitle'>" + esc(lesson.subtitle) + "</p>" : "") +
@@ -375,6 +427,7 @@
         (nx ? "<a class='lp-next' href='#/lesson/" + esc(nx.id) + "'>下一课 · " + esc(nx.title) + " →</a>" : "<span class='lp-next off'>已是最后一课 →</span>") +
       "</div>";
     root.appendChild(head);
+    lessonCtx.statusEl = $("#lpStatus", root);
 
     // 三栏布局
     var grid = el("div", "lp-grid");
@@ -410,25 +463,30 @@
       mid.appendChild(el("div", "empty", "该课程内容尚未撰写。"));
     }
 
-    // 完成本课 + 上一课 / 下一课
-    var foot = el("div", "lesson-foot");
-    var doneBtn = el("button", "dash-btn primary", done ? "✓ 已完成本课（点击取消）" : "标记为已学完，下一课");
-    doneBtn.addEventListener("click", function () {
-      if (isDone(id)) { delete progress.done[id]; progress.order = (progress.order || []).filter(function (x) { return x !== id; }); }
-      else markDone(id);
-      saveProgress();
-      renderLesson(id);
-    });
-    foot.appendChild(doneBtn);
-    if (nx) {
-      var nb = el("button", "dash-btn ghost", "下一课 · " + esc(nx.no) + " " + esc(nx.title) + " →");
-      nb.addEventListener("click", function () { setLastLesson(nx.id); go("#/lesson/" + nx.id); });
-      foot.appendChild(nb);
+    // 完成本课：单一统一主按钮（prev/next 由顶部 lp-nav 承担次级文字导航）
+    // nextId = 课程声明的下一课；若未就绪则退回路径中的下一门已就绪课
+    var nextId = null;
+    if (lesson && lesson.nextLesson) {
+      var nl = L.getLesson(lesson.nextLesson);
+      nextId = nl ? lesson.nextLesson : null;
     }
-    if (pv) {
-      var pb = el("button", "dash-btn ghost", "← 上一课 · " + esc(pv.no) + " " + esc(pv.title));
-      pb.addEventListener("click", function () { setLastLesson(pv.id); go("#/lesson/" + pv.id); });
-      foot.appendChild(pb);
+    if (!nextId && nx) nextId = nx.id;
+    var foot = el("div", "lesson-foot");
+    var footBtn = el("button", "dash-btn primary" + (lessonCtx.hasQuiz && !lessonCtx.quizPassed ? " locked" : ""), lessonCtx.hasQuiz && !lessonCtx.quizPassed ? "完成 Quiz 后解锁下一课" : (done ? "✓ 已完成 · 进入下一课" : "完成本课并进入下一课"));
+    if (lessonCtx.hasQuiz && !lessonCtx.quizPassed) footBtn.setAttribute("aria-disabled", "true");
+    footBtn.addEventListener("click", function () {
+      if (lessonCtx.hasQuiz && !lessonCtx.quizPassed) { scrollToTarget("sec" + lessonCtx.checkIdx); return; }
+      markDone(id);
+      saveProgress();
+      if (nextId) { setLastLesson(nextId); go("#/lesson/" + nextId); }
+      else renderLesson(id);
+    });
+    lessonCtx.btn = footBtn;
+    lessonCtx.checkIdx = sectionIndex(id, "check");
+    foot.appendChild(footBtn);
+    if (lessonCtx.hasQuiz) {
+      var hint = el("div", "foot-quiz-hint", "本课有 " + lessonCtx.quizTotal + " 道结课检测：全部答对后将解锁「完成本课并进入下一课」。");
+      foot.appendChild(hint);
     }
     mid.appendChild(foot);
     grid.appendChild(mid);
@@ -644,14 +702,25 @@
     return 5;
   }
   function finishCheck(w, total, score, sec) {
-    var box = el("div", "check-done" + (score === total ? " all" : ""));
-    box.innerHTML = score === total
+    var all = score === total;
+    // 更新统一主按钮：全对 → 解锁"完成本课并进入下一课"，并同步顶部状态
+    if (lessonCtx && lessonCtx.hasQuiz) {
+      if (all) lessonCtx.quizPassed = true;
+      if (lessonCtx.btn) {
+        lessonCtx.btn.classList.toggle("locked", !all);
+        if (all) lessonCtx.btn.removeAttribute("aria-disabled");
+        else lessonCtx.btn.setAttribute("aria-disabled", "true");
+        lessonCtx.btn.textContent = all
+          ? (isDone(lessonCtx.id) ? "✓ 已完成 · 进入下一课" : "完成本课并进入下一课")
+          : "完成 Quiz 后解锁下一课";
+      }
+    }
+    var box = el("div", "check-done" + (all ? " all" : ""));
+    box.innerHTML = all
       ? "<div class='cd-ico'>🎉</div><div class='cd-t'>太棒了，全部答对！你对本课的理解已经成立。</div>" +
         (sec.done ? "<div class='cd-note'>" + esc(sec.done) + "</div>" : "") +
-        (sec.nextLesson ? "<button class='dash-btn primary' data-nx>下一课 →</button>" : "")
-      : "<div class='cd-ico'>💪</div><div class='cd-t'>答对 " + score + " / " + total + "。有答错的题，题目下方都有『回到讲义』按钮，复习后再回来把它们补上。</div>";
-    var nx = box.querySelector("[data-nx]");
-    if (nx) nx.addEventListener("click", function () { if (sec.nextLesson) go("#/lesson/" + sec.nextLesson); });
+        "<div class='cd-next'>完成本课：请点击页面底部的「完成本课并进入下一课」按钮。</div>"
+      : "<div class='cd-ico'>💪</div><div class='cd-t'>答对 " + score + " / " + total + "。有答错的题，题目下方都有『回到讲义』按钮，复习后再回来把它们补上。全部答对后即可进入下一课。</div>";
     w.appendChild(box);
   }
 

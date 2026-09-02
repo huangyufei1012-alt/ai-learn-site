@@ -153,8 +153,21 @@
   function embeddingSpace(c) {
     c.innerHTML = "";
     var head = el("div", "viz-head");
-    head.innerHTML = "<div class='viz-hint'>坐标代表两种语义：「动物 ↔ 食物」＋「具体物 ↔ 抽象概念」。输入一个词，它会根据『意思』被放到一个位置——位置越近 = 语义越近。这就是 Embedding：给词找坐标。</div>";
+    head.innerHTML = "<div class='viz-hint'>坐标代表两种语义：「动物 ↔ 食物」＋「具体物 ↔ 抽象概念」。输入一个词，它会根据『意思』被放到一个位置——位置越近 = 语义越近。这就是 Embedding：给词找坐标。</div>" +
+      "<div class='viz-note' style='margin-top:8px'>⚠️ 教学模拟：这里用 2 个维度示意。真实 Embedding 是几百到几千维的向量，下面给一个「真实语义向量 + 余弦相似度」的对照例子，帮你把示意图接到真模型上。</div>";
     c.appendChild(head);
+
+    // 真实向量 + 余弦相似度对照（教学说明，非示意图）
+    var realRef = el("div", "emb-real");
+    realRef.innerHTML =
+      "<div class='emb-real-t'>真实世界中（示意、非真实数值）：</div>" +
+      "<div class='emb-real-row'><code>vec(猫)</code> = [0.91, -0.38, 0.66, 0.12, …]（数百维）</div>" +
+      "<div class='emb-real-row'><code>vec(狗)</code> = [0.85, -0.31, 0.72, 0.09, …]</div>" +
+      "<div class='emb-real-row'><code>vec(苹果)</code> = [-0.24, 0.88, -0.41, 0.55, …]</div>" +
+      "<div class='emb-real-row'>余弦相似度 ▲</div>" +
+      "<div class='emb-real-cos'>cos(猫, 狗) ≈ 0.92（语义近）　·　cos(猫, 苹果) ≈ 0.11（语义远）</div>" +
+      "<div class='emb-real-note'>实用结论：模型不是记住字，而是把「意思」编码进向量的方向——所以「苹果-水果+公司 = 苹果公司」这类向量加减才有意义。</div>";
+    c.appendChild(realRef);
 
     var toolbar = el("div", "viz-toolbar");
     toolbar.innerHTML = "<input class='viz-input' id='embWord' placeholder='输入一个词，回车投放（多词用空格隔开）' value='猫 苹果 狮子 香蕉 快乐'>" +
@@ -289,61 +302,103 @@
   function attentionHeatmap(c) {
     c.innerHTML = "";
     var head = el("div", "viz-head");
-    head.innerHTML = "<div class='viz-hint'>点句中任意一个词，看它把「注意力」分给了其它词（颜色越深越关注）。模型在理解某词时会临时对全句加权——这就是 Attention。</div>";
+    head.innerHTML = "<div class='viz-hint'>点句中任意一个<b>词</b>，看它把「注意力」分给了其它词（百分比越大越关注）。模型在理解某词时会临时对全句加权——这就是 Attention。</div>" +
+      "<div class='viz-note' style='margin-top:8px'>⚠️ 教学模拟：下方为演示用示意权重，非真实模型输出，用于直观理解「加权聚焦」这一思想。</div>";
     c.appendChild(head);
 
+    // 3 个预设例句（≤ 分词展示，均可独立点词）
+    var PRESETS = [
+      "那棵大树下有一株开满花的玫瑰",
+      "小猫在河边追着一只蝴蝶",
+      "机器人正在认真地阅读一本厚厚的书"
+    ];
+    var presetBar = el("div", "viz-toolbar");
+    presetBar.innerHTML = "<span class='viz-note' style='opacity:.85'>例句：</span>";
+    PRESETS.forEach(function (p) {
+      var b = el("button", "viz-btn ghost", esc(p));
+      b.addEventListener("click", function () { inputEl.value = p; run(); });
+      presetBar.appendChild(b);
+    });
+    c.appendChild(presetBar);
+
     var toolbar = el("div", "viz-toolbar");
-    toolbar.innerHTML = "<input class='viz-input' id='attSent' style='flex:1' value='那棵大树下有一株开满花的玫瑰'>" +
-      "<button class='viz-btn' id='attGo'>换一句</button>";
+    toolbar.innerHTML = "<input class='viz-input' id='attSent' style='flex:1' value='" + PRESETS[0] + "'>" +
+      "<button class='viz-btn' id='attGo'>分词并演示</button>";
     c.appendChild(toolbar);
+    var inputEl = document.getElementById("attSent");
 
     var wrap = el("div", "viz-canvas");
     c.appendChild(wrap);
     var board = el("div", "att-board");
     wrap.appendChild(board);
 
-    // 语义相关启发：非规则，用"词对相似度"近似（字符重合 + 相邻衰减）
-    var STOP = ["的", "了", "下", "有", "一", "是", "在", "和", "与", "个", "只", "里面", "上", "中", "都", "就", "很"];
+    // 中文分词：优先按 2~4 字词表匹配，其余按单字切分（教学模拟）
+    var DICT = ["大树", "开满", "满花", "玫瑰", "小猫", "蝴蝶", "机器人", "认真", "阅读", "厚的", "一本", "一只", "一棵", "那棵", "草地", "追着", "河边", "正在", "厚厚"];
+    var STOP = ["的", "了", "下", "有", "一", "是", "在", "和", "与", "个", "只", "里", "上", "中", "都", "就", "很", "地", "着"];
+    function tokenize(s) {
+      var out = [], i = 0;
+      while (i < s.length) {
+        // 跳过标点/空白（作为切分点，不进入词表）
+        if (/[\s，。、,.；;！!？?：:“”"（）()]/.test(s[i])) { i++; continue; }
+        var got = null;
+        for (var L = 4; L >= 2; L--) {
+          if (i + L <= s.length && DICT.indexOf(s.substr(i, L)) !== -1) { got = s.substr(i, L); break; }
+        }
+        if (!got) got = s[i];
+        out.push(got);
+        i += got.length;
+      }
+      return out;
+    }
+    // 语义相关度启发：同现字 + 常见搭配加权（示意，不追求精确）
+    var SIM = {
+      "大树": { "玫瑰": 0.15, "下": 0.8, "有": 0.5, "开满": 0.6 },
+      "玫瑰": { "大树": 0.15, "开满": 0.9, "满花": 0.75, "花": 0.7 },
+      "小猫": { "蝴蝶": 0.75, "追着": 0.9, "河边": 0.6 },
+      "蝴蝶": { "小猫": 0.75, "追着": 0.85},
+      "机器人": { "阅读": 0.7, "认真": 0.75, "厚厚的": 0.4, "书": 0.6 },
+      "阅读": { "机器人": 0.7, "书": 0.9, "厚厚的": 0.5, "认真": 0.6 }
+    };
     function sim(a, b) {
       if (a === b) return 1.2;
+      var t = SIM[a] && SIM[a][b];
+      if (typeof t === "number") return t;
       var base = 0;
       var commons = 0;
       for (var i = 0; i < Math.min(a.length, 4); i++) {
         if (b.indexOf(a[i]) !== -1) commons++;
       }
-      base += commons * 0.55;
-      if (Math.abs(a.length - b.length) <= 1) base += 0.25;
+      base += commons * 0.4;
+      if (Math.abs(a.length - b.length) <= 1) base += 0.18;
       return base;
     }
-    function tokenize(s) {
-      return s.split(/[\s，。、,.；;！!？?]/).filter(function (x) { return x; });
-    }
     function run() {
-      var sent = document.getElementById("attSent").value || "那棵大树下有一株开满花的玫瑰";
+      var sent = (inputEl.value || "").trim() || PRESETS[0];
+      inputEl.value = sent;
       var tokens = tokenize(sent);
       var scoreMap = {};
       function sink() { return 1e-9; }
       tokens.forEach(function (t) {
         var scores = tokens.map(function (o) {
           var sc = sim(t, o);
-          if (STOP.indexOf(o) !== -1) sc *= 0.35;
-          if (STOP.indexOf(t) !== -1) sc *= 0.2;
+          if (STOP.indexOf(o) !== -1) sc *= 0.3;
+          if (STOP.indexOf(t) !== -1) sc *= 0.15;
           return sc;
         });
         var sum = scores.reduce(function (a, b) { return a + b; }, 0) || sink();
         scoreMap[t] = scores.map(function (s) { return s / sum; });
       });
-      renderRow(tokens, scoreMap);
+      renderRow(tokens, scoreMap, null);
     }
 
+    function pct(x) { return (x * 100).toFixed(1) + "%"; }
     function renderRow(tokens, scores, selToken) {
       board.innerHTML = "";
       var row = el("div", "att-row");
-      var selName = selToken; 
       tokens.forEach(function (t, ti) {
         var cell = el("button", "att-cell" + (t === selToken ? " sel" : ""));
         cell.textContent = t;
-        cell.title = "点我看它的注意力";
+        cell.title = "点「" + t + "」看它的注意力分配";
         cell.addEventListener("click", function () { renderRow(tokens, scores, t); });
         row.appendChild(cell);
       });
@@ -351,21 +406,23 @@
 
       if (selToken) {
         var w = scores[selToken] || [];
+        var total = w.reduce(function (a, b) { return a + b; }, 0);
         var heat = el("div", "att-heat");
-        var lab = el("div", "att-lab", "「" + esc(selToken) + "」的注意力：");
+        var lab = el("div", "att-lab", "「" + esc(selToken) + "」的注意力（每项加总 ≈ 100%）：");
         heat.appendChild(lab);
         var bar = el("div", "att-barbox");
         tokens.forEach(function (t, ti) {
-          var cellW = (w[ti] || 0) * 100;
-          cellW = Math.max(1.4, Math.min(96, cellW));
+          var raw = (w[ti] || 0) / (total || 1);
+          var cellW = Math.max(1.4, Math.min(96, raw * 100));
           var b = el("div", "att-bar");
-          b.innerHTML = "<div class='att-bartrack'><i class='att-barfill' style='width:" + cellW + "%'></i></div><span>" + esc(t) + "</span>";
+          b.innerHTML = "<div class='att-bartrack'><i class='att-barfill' style='width:" + cellW + "%'></i></div><span>" + esc(t) + " <b style='color:var(--primary-strong)'>" + pct(raw) + "</b></span>";
           bar.appendChild(b);
         });
         heat.appendChild(bar);
+        heat.appendChild(el("div", "att-hint", "看到没？当模型聚焦「" + esc(selToken) + "」这个词时，它主要看全句中和它语义相关的词——这就是「加权吸收上下文」。"));
         board.appendChild(heat);
       } else {
-        var hint = el("div", "att-hint", "↑ 点上面任意一个词，看它的注意力权重分配。");
+        var hint = el("div", "att-hint", "↑ 点上面任意一个<b>词</b>，看它把注意力分给了谁（百分比加总约等于 100%）。");
         board.appendChild(hint);
       }
     }
@@ -382,15 +439,15 @@
     c.appendChild(head);
 
     var stages = [
-      { n: "输入", t: "Token + Embedding", d: "把词「模型」变成向量；再叠加位置编码，让它知道自己是第几个。" },
-      { n: "嵌入", t: "位置编码", d: "每个词的位置被编码进向量：没有它，「狗追猫」和「猫追狗」无法区分。" },
-      { n: "注意力", t: "多头注意力", d: "Q/K/V 让每个词结合全局上下文；多组头并行，不同视角同时观察。" },
-      { n: "残差", t: "残差 + 归一化", d: "把上一步的输入加回来（残差），再做归一化——信息低损耗跨层直达，能堆得很深。" },
-      { n: "前馈", t: "前馈网络 FFN", d: "对每个词独立再做非线性变换，增强表达能力。" },
-      { n: "堆叠", t: "重复 N 层", d: "把 内部三件套 复制叠很多层，表示一层比一层抽象。" },
-      { n: "输出", t: "预测下一个词", d: "线性层 + Softmax 得到词典概率，取最可能的词，拼回输入继续预测。" }
+      { n: "输入", t: "Token + Embedding", d: "把词「模型」变成向量；再叠加位置编码，让它知道自己是第几个。", fin: "输入：词「猫狗」", fout: "输出：2 个向量（各数百维）" },
+      { n: "嵌入", t: "位置编码", d: "每个词的位置被编码进向量：没有它，「狗追猫」和「猫追狗」无法区分。", fin: "输入：词向量", fout: "输出：词向量 + 位置信息" },
+      { n: "注意力", t: "多头注意力", d: "Q/K/V 让每个词结合全局上下文；多组头并行，不同视角同时观察。", fin: "输入：带位置的向量", fout: "输出：融合了全句上下文的向量（「狗」看到「追」「猫」）" },
+      { n: "残差", t: "残差 + 归一化", d: "把上一步的输入加回来（残差），再做归一化——信息低损耗跨层直达，能堆得很深。", fin: "输入：注意力输出 + 原始向量", fout: "输出：稳定、可继续下传的向量" },
+      { n: "前馈", t: "前馈网络 FFN", d: "对每个词独立再做非线性变换，增强表达能力。", fin: "输入：层归一化后的向量", fout: "输出：表达能力更强的向量" },
+      { n: "堆叠", t: "重复 N 层", d: "把 内部三件套 复制叠很多层，表示一层比一层抽象。", fin: "输入：第 L 层输出", fout: "输出：第 L+1 层输出（更抽象）" },
+      { n: "输出", t: "预测下一个词", d: "线性层 + Softmax 得到词典概率，取最可能的词，拼回输入继续预测。", fin: "输入：最后一层向量", fout: "输出：下一个词的分布 + 最可能的词" }
     ];
-    var idx = -1, timer = null;
+    var idx = -1, timer = null, shownFull = false;
 
     var wrap = el("div", "viz-canvas");
     c.appendChild(wrap);
@@ -407,8 +464,16 @@
       flowRow.appendChild(node);
     });
     var detailBox = el("div", "tf-detail");
-    detailBox.innerHTML = "<div class='vd-name' id='tfTitle'>准备就绪</div><div class='vd-sub' id='tfDesc'>点击「下一步」，看一个词走完整条流水线。</div>";
+    detailBox.innerHTML = "<div class='vd-name' id='tfTitle'>准备就绪</div>" +
+      "<div class='vd-sub' id='tfDesc'>点击「下一步」，看一个词走完整条流水线。</div>" +
+      "<div class='tf-io' id='tfIO' style='display:none'></div>" +
+      "<div class='tf-note-note' id='tfNote' style='display:none'></div>";
     wrap.appendChild(detailBox);
+    // 完整架构（走完全部步骤后展示）
+    var fullArch = el("div", "tf-full", "");
+    fullArch.id = "tfFull";
+    fullArch.style.display = "none";
+    wrap.appendChild(fullArch);
 
     var ctrl = el("div", "viz-toolbar");
     ctrl.innerHTML = "<button class='viz-btn' id='tfNext'>下一步 ▶</button>" +
@@ -425,15 +490,53 @@
       });
       var t = document.getElementById("tfTitle"), d = document.getElementById("tfDesc");
       var p = document.getElementById("tfProg");
+      var io = document.getElementById("tfIO"), note = document.getElementById("tfNote");
+      var full = document.getElementById("tfFull");
       if (idx < 0) {
         t.textContent = "准备就绪"; d.textContent = "点击「下一步」，看一个词走完整条流水线。";
         p.textContent = "0 / " + stages.length;
+        if (io) io.style.display = "none";
+        if (note) note.style.display = "none";
+        if (full) full.style.display = "none";
       } else {
         var s = stages[Math.min(idx, stages.length - 1)];
         t.textContent = "第 " + (idx + 1) + " 步 · " + s.t;
         d.textContent = s.d;
         p.textContent = (idx + 1) + " / " + stages.length;
+        // 每步输入/输出
+        if (io) {
+          io.style.display = s.fin || s.fout ? "block" : "none";
+          io.innerHTML = s.fin ? "<div><b>输入：</b>" + esc(s.fin) + "</div>" : "";
+          io.innerHTML += s.fout ? "<div><b>输出：</b>" + esc(s.fout) + "</div>" : "";
+        }
+        // Attention 是 Transformer 的"子模块"说明（在第 3 步）
+        if (note) {
+          var showNote = (idx === 2);
+          note.style.display = showNote ? "block" : "none";
+          if (showNote) note.innerHTML = "🧩 注意：Attention 只是 Transformer 众多模块中的一个子部分。整座模型 = 位置编码 + 多头注意力 + 残差/归一化 + 前馈网络，反复堆叠。把「注意力」放到正确位置，才能不把它误当整个模型。";
+        }
+        // 走完全部：展示完整架构
+        if (full) {
+          if (idx === stages.length - 1) {
+            full.style.display = "block";
+            if (!full.dataset.built) { buildFullArch(full); full.dataset.built = "1"; }
+          } else {
+            full.style.display = "none";
+          }
+        }
       }
+    }
+    // 完整架构图（文字版分块示意）
+    function buildFullArch(el_) {
+      var rows = [
+        ["输入序列", "Token + Embedding → 位置编码"],
+        ["Transformer 块（重复 N 层）", "多头注意力 → 残差+归一化 → 前馈网络 → 残差+归一化", "tf-hl"],
+        ["输出头", "线性层 → Softmax → 预测下一个词"]
+      ];
+      el_.innerHTML = "<div class='tf-full-t'>完整架构总览：</div>" +
+        rows.map(function (r, i) {
+          return "<div class='tf-full-row" + (r[2] || "") + "'><div class='tf-full-k'>" + esc(r[0]) + "</div><div class='tf-full-v'>" + esc(r[1]) + "</div></div>";
+        }).join("");
     }
     function next() { idx = Math.min(idx + 1, stages.length - 1); paint(); }
     function reset() { idx = -1; paint(); }
@@ -453,7 +556,9 @@
   function ragPipeline(c) {
     c.innerHTML = "";
     var head = el("div", "viz-head");
-    head.innerHTML = "<div class='viz-hint'>输入你自己的「文档」和「问题」，点击运行，看 RAG 如何把它 切块 → 向量化 → 检索 Top-K → 重排 → 组装上下文 → 生成答案。</div>";
+    head.innerHTML = "<div class='viz-hint'>输入你自己的「文档」和「问题」，点击运行，看 RAG 如何把它 切块 → 向量化 → 检索 Top-K → 重排 → 组装上下文 → 生成答案。</div>" +
+      "<div class='viz-note' style='margin-top:8px'>⚠️ 教学模拟：向量化/相似度/重排均为演示用启发式示意，用于理解 RAG 的整体流程，非真实模型输出。</div>" +
+      "<div class='viz-note' style='margin-top:6px'>💡 可点击右上角「一句话问出好问题」的预设问题，或自行改动文档，看 RAG 如何「有据可查」或「资料里没有就拒答」。</div>";
     c.appendChild(head);
 
     // 输入区
@@ -463,7 +568,11 @@
       "<textarea id='ragDoc' rows='4'>年假制度：入职满一年享每年 5 天带薪年假，工龄三年以上每年 8 天。报销流程：金额低于 1000 元走 OA 报销，超过 1000 元需部门经理审批。年假需提前 3 个工作日申请。</textarea></div>" +
       "<div class='rag-fld'><label>你的问题</label>" +
       "<input class='viz-input' id='ragQ' value='入职两年，我有几天年假？' style='flex:1'>" +
-      "<button class='viz-btn' id='ragRun'>▶ 运行 RAG</button></div>";
+      "<button class='viz-btn' id='ragRun'>▶ 运行 RAG</button></div>" +
+      "<div class='viz-toolbar' style='margin-top:4px'><span class='viz-note' style='opacity:.85'>预设问题：</span>" +
+      "<button class='viz-btn ghost' data-q='入职两年，我有几天年假？'>②问年假</button>" +
+      "<button class='viz-btn ghost' data-q='金额 800 元报销要审批吗？'>③问报销</button>" +
+      "<button class='viz-btn ghost' data-q='公司有健身房吗？'>④问不存在信息（拒答）</button></div>";
     c.appendChild(panel);
 
     var wrap = el("div", "viz-canvas");
@@ -519,7 +628,11 @@
       return m ? m[1] : chunk.slice(0, 12);
     }
 
+    var gen = 0; // RAG 播放代数令牌：重跑时使旧链路失效
+
     function run() {
+      // 代数令牌：重新运行时使上一次嵌套 setTimeout 全部失效，避免两次播放结果交错
+      var my = ++gen;
       var doc = document.getElementById("ragDoc").value || "";
       var q = document.getElementById("ragQ").value.trim() || "入职两年，我有几天年假？";
       // 1) 切块（按句子、标点）
@@ -529,6 +642,7 @@
       chunks.forEach(function (c, i) { out.appendChild(el("div", "chunk-chip", "块" + (i + 1) + "：「" + esc(c.slice(0, 26)) + (c.length > 26 ? "…" : "") + "」")); });
       nodeOn(0);
       setTimeout(function () {
+        if (my !== gen) return; // 旧播放已失效
         // 2) 向量化
         out.appendChild(el("div", "rag-step", "<b class='rs-t'>② 向量化 Embedding</b> 把每块文字变成一个向量（语义相近 → 向量相近）。"));
         chunks.forEach(function (c, i) {
@@ -536,25 +650,35 @@
         });
         nodeOn(1);
         setTimeout(function () {
+          if (my !== gen) return;
           // 3) 存库 + 4) 检索
           out.appendChild(el("div", "rag-step", "<b class='rs-t'>③④ 存库 → 检索</b> 向量存入 VectorDB，再把问题「" + esc(q) + "」向量化，在库里找最像的 Top-K。"));
           var scored = chunks.map(function (c, i) { return { c: c, s: scoreChunk(c, q), i: i }; });
           scored.sort(function (a, b) { return b.s - a.s; });
           var top = scored.filter(function (x) { return x.s > 0; }).slice(0, 3);
-          if (!top.length) top = scored.slice(0, 2);
-          top.forEach(function (t) { out.appendChild(el("div", "chunk-chip hit", "命中 块" + (t.i + 1) + " (相似度 " + (t.s + 1.0).toFixed(2) + ")「" + esc(t.c.slice(0, 22)) + "…」")); });
+          if (!top.length) {
+            out.appendChild(el("div", "chunk-chip miss", "未检索到与「" + esc(q) + "」相关的块（语义距离都很远）——这正是后面「拒答」的原因。"));
+          }
+          if (top.length) {
+            top.forEach(function (t) { out.appendChild(el("div", "chunk-chip hit", "命中 块" + (t.i + 1) + " (相似度 " + (t.s + 1.0).toFixed(2) + ")「" + esc(t.c.slice(0, 22)) + "…」")); });
+          } else {
+            top = scored.slice(0, 2); // 保证重排/组装仍能走通，但 composeAnswer 会因无命中而拒答
+          }
           nodeOn(3);
           setTimeout(function () {
+            if (my !== gen) return;
             // 5) 重排
             var reranked = top.slice().sort(function (a, b) { return b.s - a.s; });
             out.appendChild(el("div", "rag-step", "<b class='rs-t'>⑤ 重排序 Rerank</b> 用更精细的模型把命中块按相关度重排，把真正相关的提到前。" + (reranked.length > 1 ? " → 优先块" + (reranked[0].i + 1) : "")));
             nodeOn(4);
             setTimeout(function () {
+              if (my !== gen) return;
               // 6) 组装
               var ctx = reranked.map(function (t) { return t.c; }).join(" ").slice(0, 200);
               out.appendChild(el("div", "rag-step", "<b class='rs-t'>⑥ 组装上下文</b> 把命中的资料拼进 Prompt：<div class='ctx-box'>「以下是参考资料：<i>" + esc(ctx) + "…</i> 请只依据资料回答并注明出处。」</div>"));
               nodeOn(5);
               setTimeout(function () {
+                if (my !== gen) return;
                 // 7) 生成答案（依据命中块拼装）
                 var answer = composeAnswer(reranked, q);
                 out.appendChild(el("div", "rag-step", "<b class='rs-t'>⑦ 生成答案</b> 模型依据资料作答：" +
@@ -572,16 +696,43 @@
     function composeAnswer(ranked, q) {
       var txt = "";
       var cites = [];
-      // 从命中块里找"年假"线索
+      // 相关度判定：没有任何块命中关键词 → 属于"资料里没有"的情况 → 必须拒答
+      var yannian = q.indexOf("年假") !== -1 || q.indexOf("休假") !== -1;
+      var baoxiao = q.indexOf("报销") !== -1 || q.indexOf("审批") !== -1;
       for (var i = 0; i < ranked.length; i++) {
         var c = ranked[i].c, ci = ranked[i].i;
-        if (c.indexOf("年假") !== -1) { txt = c; cites.push(ci + 1); break; }
+        // 年假：解析天数规则
+        if (yannian && c.indexOf("年假") !== -1) {
+          cites.push(ci + 1);
+          var m = c.match(/入职满一年享每年\s*(\d+)\s*天/);
+          if (m) { txt = "入职两年，每年享有 " + m[1] + " 天带薪年假。"; }
+          else { txt = "根据资料，入职两年享有" + (c.match(/每年\s*(\d+)\s*天/) ? c.match(/每年\s*(\d+)\s*天/)[1] : "对应") + "天带薪年假。"; }
+          break;
+        }
+        // 报销：解析阈值
+        if (baoxiao && c.indexOf("报销") !== -1) {
+          cites.push(ci + 1);
+          var m2 = c.match(/金额低于\s*(\d+)\s*元/);
+          if (m2) { txt = "金额低于 " + m2[1] + " 元的报销走 OA 流程即可，超过" + (c.match(/超过\s*(\d+)\s*元/)?c.match(/超过\s*(\d+)\s*元/)[1]:"1000") + " 元才需部门经理审批。"; }
+          else { txt = "根据资料：金额 800 元（未超阈值）走 OA 报销即可。" ; }
+          break;
+        }
       }
-      if (!txt) { txt = "根据你提供的资料，未能找到与问题直接相关的信息。建议补充文档后再查询。"; }
-      else { txt = "「" + txt + "」（依据你提供的资料回答）"; }
+      // 没有任何可依据的块 → 无答案必须拒答，而非硬编
+      if (!cites.length) {
+        txt = "根据你提供的资料，没有任何内容涉及这个问题，我无法作答。建议补充相关文档后再用 RAG 查询。（正确拒答，不编造）";
+      }
       return { text: txt, cites: cites };
     }
     document.getElementById("ragRun").addEventListener("click", run);
+    // 预设问题快捷按钮
+    panel.querySelectorAll("[data-q]").forEach(function (pb) {
+      pb.addEventListener("click", function () {
+        var qIn = document.getElementById("ragQ");
+        if (qIn) qIn.value = pb.getAttribute("data-q");
+        run();
+      });
+    });
     run();
   }
 
@@ -598,31 +749,37 @@
       goal: "用户点击「注册」后没有任何反应。请修复它并跑测试。",
       steps: [
         { clue: "先定位问题在哪。你决定调用哪个工具？", tools: [
-          { label: "read register.js（读代码）", ok: true, verb: "read_file(register.js)", out: "读到 register.js：提交按钮『只在页面加载时绑过一次事件，且写错了选择器』。" },
+          { label: "read register.js（读代码）", ok: true, verb: "read_file(register.js)", why: "先读再改：只有看清代码才知道 bug 在哪，避免盲改。", out: "读到 register.js：提交按钮『只在页面加载时绑过一次事件，且写错了选择器』。" },
           { label: "直接 edit（不先读就改）", ok: false, verb: "edit_file(register.js)", out: "⚠ 报错：你还没读文件，不知道改哪里。请先 read。" },
           { label: "run bundle.js（乱跑命令）", ok: false, verb: "run(bundle.js)", out: "⚠ 报错：命令不存在。请先读代码定位。" }
         ]},
         { clue: "现在你知道原因了：按钮事件绑错了。你决定？", tools: [
-          { label: "edit_file 修正选择器并绑定 click", ok: true, verb: "edit_file(register.js)", out: "已将提交按钮绑定到正确的 click → submit()。" },
+          { label: "edit_file 修正选择器并绑定 click", ok: true, verb: "edit_file(register.js)", why: "读到的信息已经足够定位，直接改最有价值。", out: "已将提交按钮绑定到正确的 click → submit()。" },
           { label: "再 read 一次（读两遍）", ok: false, verb: "read_file", out: "你重复读了，没有新信息。请直接改。" },
           { label: "直接删掉文件", ok: false, verb: "rm(register.js)", out: "⚠ 危险操作：删除文件需要你（用户）授权。请求被拦截。" }
         ]},
         { clue: "改完了，接下来验证。你决定？", tools: [
-          { label: "run npm test（跑测试）", ok: true, verb: "run(npm test)", out: "✅ 2 个测试全部通过。" },
+          { label: "run npm test（跑测试）", ok: true, verb: "run(npm test)", why: "改动必须验证：跑测试才能确认没改坏别的功能。", out: "✅ 2 个测试全部通过。" },
           { label: "不测试直接交付", ok: false, verb: "report()", out: "⚠ 你还没验证改动是否正确，建议先跑测试。" },
           { label: "read 自己刚写的代码", ok: false, verb: "read_file", out: "没问题，但还没验证功能。先跑测试更稳。" }
         ]},
         { clue: "测试通过。最后一步？", tools: [
-          { label: "report() 总结改动并汇报", ok: true, verb: "report()", out: "完成：修复了注册按钮无响应的 bug，测试通过。" },
+          { label: "report() 总结改动并汇报", ok: true, verb: "report()", why: "目标已达成，该收尾汇报，而不是继续空转。", out: "完成：修复了注册按钮无响应的 bug，测试通过。" },
           { label: "继续无限改下去", ok: false, verb: "edit_file(...)", out: "没有目标了，继续改会造成无意义循环（这正是 Agent 要避免的失控）。" }
         ]}
       ]
     };
 
-    var phase = 0, active = null;
+    var phase = 0, busy = false;
 
     var goalBar = el("div", "ag-goal", "目标：<b>" + esc(scenario.goal) + "</b><span class='ag-scene'>" + esc(scenario.name) + "</span>");
     c.appendChild(goalBar);
+
+    // 工具栏：重新开始（随时可用，避免任何"卡死"）
+    var ctrl = el("div", "viz-toolbar");
+    ctrl.innerHTML = "<button class='viz-btn ghost' id='agRestart'>↺ 重新开始</button>" +
+      " <span class='viz-note' id='agProg'>第 " + (phase + 1) + " / " + scenario.steps.length + " 步</span>";
+    c.appendChild(ctrl);
 
     var loop = el("div", "ag-loop");
     loop.innerHTML =
@@ -646,53 +803,67 @@
       if (phase >= scenario.steps.length) return;
       var st = scenario.steps[phase];
       var card = el("div", "ag-choice");
-      var whose = (phase % 2 === 0) ? "你（Agent）" : "你（Agent）";
-      card.innerHTML = "<div class='ag-clue'>🔎 " + esc(st.clue) + "</div>";
+      card.innerHTML = "<div class='ag-clue'>🔎 " + esc(st.clue) + "</div>" +
+        "<div class='ag-sub'>这步该调用哪个工具？选错了会得到反馈并<b>允许重试</b>。</div>";
       var btns = el("div", "ag-tools");
       st.tools.forEach(function (t, ti) {
         var b = el("button", "ag-tool-btn", t.label);
-        b.addEventListener("click", function () { choose(t, b, btns); });
+        b.addEventListener("click", function () { choose(t, btns); });
         btns.appendChild(b);
       });
       card.appendChild(btns);
       log.appendChild(card);
     }
-    function choose(t, btn, btns) {
-      if (active === phase) return;
-      active = phase;
-      // 禁用所有按钮
+    function choose(t, btns) {
+      if (busy) return; // 只要 busy 就忽略，绝不重复进入；每次异常路径都会复位 busy
+      busy = true;
+      // 禁用当前步所有按钮（防止连点）
       btns.querySelectorAll(".ag-tool-btn").forEach(function (x) { x.disabled = true; });
       paintActive("act");
-      var thoughtLine = "💡 想：我选择调用 <code>" + esc(t.verb) + "</code>";
-      addLine(thoughtLine, "alt");
+      // 叙述 1：想了什么、调用什么工具
+      addLine("💡 想：我决定调用 <code>" + esc(t.verb) + "</code>——" + esc(t.why || "调用工具观察反馈"), "alt");
       setTimeout(function () {
         paintActive("observe");
-        addLine("👀 看：" + esc(t.out), t.ok ? "good" : "bad");
+        // 叙述 2：工具返回什么
+        addLine("👀 看（<code>" + esc(t.verb) + "</code> 返回）：" + esc(t.out), t.ok ? "good" : "bad");
         if (t.ok) {
+          // 叙述 3：为什么下一步
+          addLine("➡️ 为什么这样能推进：" + esc(t.why || "反馈确认了当前目标，进入下一环节"), "hint");
           setTimeout(function () {
             phase++;
-            active = null;
+            busy = false;
             paintActive("think");
+            progEl.textContent = phase < scenario.steps.length ? "第 " + (phase + 1) + " / " + scenario.steps.length + " 步" : "完成";
             if (phase < scenario.steps.length) { renderClue(); }
             else {
               addLine("<div class='ag-done'>✅ 任务完成！你自己走完了一个 Agent 循环：<b>想→做→看→再想</b>，直到目标达成。注意错误选项演示了【失败→反馈→修正】和【危险操作需授权】。</div>", "");
               paintActive(null);
             }
-          }, 600);
+          }, 700);
         } else {
-          // 错误：回到"想"，可重选
+          // 失败反馈：明确告知，并复位 busy + 允许重选本步（不永久锁死）
+          addLine("⚠️ 这一步没选对：Agent 没有推进，下面<b>允许你重试本步</b>。", "bad");
           setTimeout(function () {
-            active = -1;
+            busy = false;
             paintActive("think");
-            addLine("↩ 反馈提示你重新决策（Agent 的『看』→『再想』）……", "hint");
-            setTimeout(function () {
-              btns.querySelectorAll(".ag-tool-btn").forEach(function (x) { x.disabled = false; });
-              active = null;
-            }, 200);
+            btns.querySelectorAll(".ag-tool-btn").forEach(function (x) { x.disabled = false; });
+            addLine("↩ 反馈已经消化，重新思考这一步……（这就是【看】→【再想】）", "hint");
           }, 700);
         }
       }, 500);
     }
+    // 重新开始：清空日志、复位到第 1 步
+    var progEl = document.getElementById("agProg");
+    var restartBtn = document.getElementById("agRestart");
+    restartBtn.addEventListener("click", function () {
+      log.innerHTML = "";
+      phase = 0;
+      busy = false;
+      paintActive("think");
+      progEl.textContent = "第 1 / " + scenario.steps.length + " 步";
+      addLine("🔄 已重新开始。新的 Agent 循环从第 1 步走起。", "alt");
+      renderClue();
+    });
     renderClue();
   }
 
