@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Knowledge OS · Phase 1 知识树</title>
+<title>AI Knowledge OS · 从零看懂整个 AI 世界</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2026%2026'%3E%3Ccircle%20cx='13'%20cy='13'%20r='11'%20fill='none'%20stroke='%235b6cff'%20stroke-width='2.5'/%3E%3Cpath%20d='M13%205v8l5.5%203'%20fill='none'%20stroke='%2300b8a9'%20stroke-width='2.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3Ccircle%20cx='13'%20cy='13'%20r='5'%20fill='none'%20stroke='%235b6cff'%20stroke-width='2.4'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<!-- ============ 顶部栏 ============ -->
-<header class="topbar">
+<!-- ============ 顶部导航 ============ -->
+<header class="topbar" id="topbar">
   <div class="brand">
     <div class="brand-logo">
       <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
@@ -19,13 +19,16 @@
         <circle cx="13" cy="13" r="5.5" fill="none" stroke="#5b6cff" stroke-width="2.4"/>
       </svg>
     </div>
-    <span class="brand-text">AI Knowledge OS</span>
-    <span class="brand-tag">Phase 1 · 知识树校验</span>
+    <span class="brand-text">AI Knowledge <b>OS</b></span>
   </div>
-  <nav class="topnav">
-    <a href="#tree" class="active">知识树</a>
-    <a href="#stats">统计</a>
-    <a href="#about">说明</a>
+  <nav class="topnav" id="mainNav">
+    <a href="#/dashboard" data-route="dashboard">仪表盘</a>
+    <a href="#/learn" data-route="learn">开始学习</a>
+    <a href="#/map" data-route="map">知识地图</a>
+    <a href="#/explore" data-route="explore">探索概念库</a>
+    <a href="#/labs" data-route="labs">实验</a>
+    <a href="#/review" data-route="review">复习</a>
+    <a href="#/search" data-route="search">搜索</a>
   </nav>
   <div class="topbar-right">
     <button class="icon-btn theme-toggle" id="themeToggle" title="切换主题" aria-label="切换主题">
@@ -39,99 +42,22 @@
   </div>
 </header>
 
-<!-- ============ 统计条 ============ -->
-<main class="page">
-  <section class="hero" id="stats">
-    <div class="hero-title">
-      <h1>AI 知识树 <span>v2.0</span></h1>
-      <p>12 大分类 · 134 个知识点 · 5 条学习路径 —— 先看全貌，再走进去。</p>
-    </div>
-    <div class="stats-grid" id="statsGrid"></div>
-  </section>
+<!-- ============ 主内容容器（SPA 渲染） ============ -->
+<main class="page" id="app"></main>
 
-  <!-- ============ 筛选工具栏 ============ -->
-  <section class="toolbar" id="toolbar">
-    <div class="tb-search">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>
-      </svg>
-      <input type="text" id="searchInput" placeholder="搜索概念 / 技能，如 agent、embedding、提示词…" autocomplete="off">
-    </div>
-    <div class="tb-group">
-      <span class="tb-label">路径</span>
-      <div class="chips" id="pathChips"></div>
-    </div>
-    <div class="tb-group">
-      <span class="tb-label">状态</span>
-      <div class="chips" id="statusChips"></div>
-    </div>
-    <div class="tb-group">
-      <span class="tb-label">深度</span>
-      <div class="chips" id="levelChips"></div>
-    </div>
-    <button class="tb-clear" id="clearFilters" hidden>重置筛选</button>
-  </section>
+<!-- ============ 读物加载中 ============ -->
+<div class="loading" id="loading" hidden>
+  <div class="ld-ring"></div>
+  <p>正在加载知识库…</p>
+</div>
 
-  <!-- ============ 知识树 ============ -->
-  <section class="tree" id="tree">
-    <div id="pathBanner" class="path-banner" hidden></div>
-    <div class="tree-head">
-      <div>
-        <h2>12 大分类知识树</h2>
-        <p class="muted">顺序即依赖链：分类按「地基 → 上层」排列，<code>core</code> 表示必学主干。</p>
-      </div>
-      <div class="legend">
-        <span class="lg"><i class="dot st-ready"></i>ready 已就绪</span>
-        <span class="lg"><i class="dot st-wip"></i>wip 制作中</span>
-        <span class="lg"><i class="dot st-planned"></i>planned 规划中</span>
-        <span class="lg"><i class="dot lv"></i>难度 1–5</span>
-      </div>
-    </div>
-    <div id="categoryList" class="category-list"></div>
-    <div class="empty" id="emptyState" hidden>
-      <p>没有匹配的概念 —— 换个筛选条件试试。</p>
-    </div>
-  </section>
-
-  <!-- ============ 说明 ============ -->
-  <section class="about card" id="about">
-    <h2>Phase 1 交付范围</h2>
-    <p>本页不是"内容页"，而是 V2 数据模型的<strong>校验页</strong>：所有卡片均由统一知识库 <code>window.KNOWLEDGE</code> 驱动，改动 <code>content/</code> 下的 JSON 并重跑构建即可实时更新。</p>
-    <ul>
-      <li><strong>12 分类</strong>：以 <code>dependsOn</code> 表达「地基 → 上层」，点任意概念卡片查看其前置 / 后继 / 相关 / 路径归属。</li>
-      <li><strong>134 概念</strong>：<code>ready</code>（26，承接 V1 内容）/ <code>wip</code>（28）/ <code>planned</code>（80，Coming Soon）——不为了"页面多"而塞内容。</li>
-      <li><strong>5 路径</strong>：AI 使用者 / 应用开发者 / 产品经理 / 算法 / AI Coding，路径只是推荐顺序，不改变依赖关系。</li>
-    </ul>
-  </section>
-
-  <footer class="footer">AI Knowledge OS · Phase 1 · 数据驱动架构（content/ → bundle → 任意模块复用）</footer>
-</main>
-
-<!-- ============ 概念详情抽屉 ============ -->
-<div class="drawer-mask" id="drawerMask"></div>
-<aside class="drawer" id="drawer" aria-hidden="true">
-  <div class="drawer-head">
-    <div>
-      <div class="drawer-cat" id="dCat"></div>
-      <h2 id="dTitle"></h2>
-    </div>
-    <button class="icon-btn" id="drawerClose" aria-label="关闭">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-    </button>
-  </div>
-  <div class="drawer-body">
-    <p class="d-summary" id="dSummary"></p>
-    <div class="d-badges" id="dBadges"></div>
-    <div class="d-block" id="dPrereqs"></div>
-    <div class="d-block" id="dNext"></div>
-    <div class="d-block" id="dRelated"></div>
-    <div class="d-block" id="dSkills"></div>
-    <div class="d-block d-meta" id="dMeta"></div>
-    <div class="d-block" id="dPaths"></div>
-  </div>
-</aside>
+<footer class="footer" id="footer">
+  AI Knowledge OS · 从零开始，看懂整个 AI 世界
+</footer>
 
 <script src="js/knowledge-bundle.js"></script>
+<script src="js/lessons-bundle.js"></script>
+<script src="js/visuals.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
