@@ -138,27 +138,53 @@
     ]}
   ];
 
-  // 把 12 章扁平化，附带章索引，便于按顺序找上下课
-  function pathFlat() {
+  /* Vibe Coding 工程基础：第二条学习路径
+     编号沿用用户规格（①Web产品 ③API ④数据库 ⑦上线）；02/05/06/08 规划中（待上架）。
+     仅 v01/v03/v04/v07 首批就绪，其余折叠展示为「即将上线」。 */
+  var VIBE_PATH = [
+    { no: "一", course: "vibe", title: "Vibe Coding 工程基础", tag: "我想用 AI 做产品", lessons: [
+      { no: "01", id: "v01-web", title: "一个 Web 产品是怎么跑起来的" },
+      { no: "02", id: "pl-v2-git", title: "Git 与版本控制：改坏了能回退" },
+      { no: "03", id: "v03-api", title: "API 与后端：前后端怎么『对话』" },
+      { no: "04", id: "v04-db", title: "数据库、登录与安全" },
+      { no: "05", id: "pl-v5-test", title: "测试与调试：让 bug 无处可藏" },
+      { no: "06", id: "pl-v6-arch", title: "项目结构与代码组织" },
+      { no: "07", id: "v07-deploy", title: "从本地 Demo 到正式上线" },
+      { no: "08", id: "pl-v8-workflow", title: "用 AI 完整做一个产品：全流程实战" }
+    ]}
+  ];
+
+  // 把任意一条路径扁平化，附带章索引（便于按顺序找上下课）
+  function flatOf(path) {
     var out = [];
-    MAIN_PATH.forEach(function (ch, ci) {
+    path.forEach(function (ch, ci) {
       ch.lessons.forEach(function (l) { out.push({ lesson: l, chapter: ch, chapterIdx: ci }); });
     });
     return out;
   }
-  function pathIndexOf(id) {
-    var a = pathFlat();
+  // 该课属于哪条路径
+  function pathOf(id) {
+    var hit = false;
+    VIBE_PATH.forEach(function (ch) { ch.lessons.forEach(function (l) { if (l.id === id) hit = true; }); });
+    return hit ? VIBE_PATH : MAIN_PATH;
+  }
+  function pathFlat() { return flatOf(MAIN_PATH); }
+  function indexInPath(id, path) {
+    var a = flatOf(path);
     for (var i = 0; i < a.length; i++) if (a[i].lesson.id === id) return i;
     return -1;
   }
+  function pathIndexOf(id) { return indexInPath(id, pathOf(id)); }
   function pathChapterOf(id) {
-    var a = pathFlat();
+    var a = flatOf(pathOf(id));
     for (var i = 0; i < a.length; i++) if (a[i].lesson.id === id) return a[i].chapter;
     return null;
   }
   // 找到路径中距离当前课最近的一门「已就绪」课（跳过规划中）
-  function pathNeighbor(idx, dir) {
-    var a = pathFlat();
+  function pathNeighbor(id, dir) {
+    var a = flatOf(pathOf(id));
+    var idx = indexInPath(id, pathOf(id));
+    if (idx < 0) return null;
     var i = idx + dir;
     while (i >= 0 && i < a.length) {
       if (L.getLesson(a[i].lesson.id)) return a[i].lesson;
@@ -166,8 +192,8 @@
     }
     return null;
   }
-  function pathPrev(id) { var idx = pathIndexOf(id); return idx < 0 ? null : pathNeighbor(idx, -1); }
-  function pathNext(id) { var idx = pathIndexOf(id); return idx < 0 ? null : pathNeighbor(idx, 1); }
+  function pathPrev(id) { return pathNeighbor(id, -1); }
+  function pathNext(id) { return pathNeighbor(id, 1); }
 
   /* ==========================================================
    * 通用建块
@@ -241,7 +267,7 @@
     app.innerHTML = "";
     app.appendChild(w);
 
-    // 主操作：开始 / 继续学习
+    // 主操作：开始 / 继续学习（核心路径）
     var lastId = progress.lastLesson && L.getLesson(progress.lastLesson) ? progress.lastLesson
       : (progress.order && progress.order.length ? progress.order[progress.order.length - 1] : null);
     var haveLast = lastId && L.getLesson(lastId);
@@ -252,32 +278,58 @@
     var hero = el("div", "home-hero");
     hero.innerHTML =
       "<div class='hh-badge'>AI 学堂</div>" +
-      "<h1>从零开始，一步一步看懂 AI</h1>" +
-      "<p class='hh-sub'>首批 <b>6 节核心课程</b>已上线：从一张 AI 世界总图起步，一路走到 RAG 与 Agent。不需要任何基础，打开就能学，<b>一课一课往下走</b>。</p>" +
-      (haveLast
-        ? "<button class='hh-cta' id='hhGo'>继续学习 · " + esc(L.getLesson(lastId).title) + " <span class='hh-arr'>→</span></button>"
-        : "<button class='hh-cta' id='hhGo'>🚀 开始学习</button>") +
-      (haveLast ? "<div class='hh-prog'><div class='hh-bar'><i style='width:" + pct + "%'></i></div><span>已完成 " + doneCount + " / " + readyTotal + " 课 · " + pct + "%</span></div>" : "");
+      "<h1>让 AI 成为你的双手与大脑</h1>" +
+      "<p class='hh-sub'>两条路，任选一条开始：<b>想理解 AI</b>（从原理看懂）或 <b>想用 AI 做产品</b>（Vibe Coding，从零做到能上线）。都不需要基础，一课一课往下走。</p>";
     w.appendChild(hero);
-    $("#hhGo").addEventListener("click", function () { go("#/lesson/" + (lastId || "l00-ai-world")); });
 
-    // 课程地图：完整路径总览（12 章规划；已就绪课标亮）
-    var path = el("div", "block home-path");
-    path.innerHTML = "<div class='block-title'><h2>课程地图 · 从零看懂 AI</h2><span>共 12 章规划 · 首批 6 节核心课程已上线</span></div>";
-    w.appendChild(path);
-    var steps = el("ol", "hp-steps");
-    MAIN_PATH.forEach(function (ch, ci) {
-      var li = el("li", "hp-step" + (ci === 0 ? " first" : ""));
-      li.innerHTML = "<div class='hp-no'><b>" + esc(ch.no) + "</b></div>" +
-        "<div class='hp-body'><div class='hp-title'>" + esc(ch.title) + "</div>" +
-        "<div class='hp-sub'>" + ch.lessons.length + " 课</div></div>" +
-        "<span class='hp-go'>查看 →</span>";
-      li.addEventListener("click", function () { go("#/learn"); });
-      steps.appendChild(li);
+    // 双入口
+    var entries = el("div", "home-entries");
+    entries.innerHTML =
+      "<div class='he-card he-understand'><div class='he-ico'>🧠</div><div class='he-body'><div class='he-t'>我想理解 AI</div><div class='he-d'>从 AI 世界总图起步，弄懂模型、RAG、Agent 的原理。适合：想搞清『AI 到底怎么工作』。</div><div class='he-meta'>核心路径 · " + (L.readyLessons().length) + " 节可学</div></div><span class='he-go'>开始 →</span></div>" +
+      "<div class='he-card he-vibe'><div class='he-ico'>🛠️</div><div class='he-body'><div class='he-t'>我想用 AI 做产品</div><div class='he-d'>Vibe Coding 工程基础：看懂代码、判断可靠、定位错误、把 Demo 安全上线。适合：想用 AI 真的做出东西。</div><div class='he-meta'>Vibe 路径 · 首批 4 节可学</div></div><span class='he-go'>开始 →</span></div>";
+    w.appendChild(entries);
+    var firstVibe = "v01-web";
+    // 「我想理解 AI」优先回到核心路径最近一课（若上次学的是 Vibe 课则取核心路径最后进度）
+    var coreLast = null;
+    if (progress.lastLesson && flatOf(MAIN_PATH).some(function (x) { return x.lesson.id === progress.lastLesson; }) && L.getLesson(progress.lastLesson)) {
+      coreLast = progress.lastLesson;
+    } else {
+      (progress.order || []).slice().reverse().forEach(function (oid) {
+        if (!coreLast && flatOf(MAIN_PATH).some(function (x) { return x.lesson.id === oid; }) && L.getLesson(oid)) coreLast = oid;
+      });
+    }
+    $(".he-understand", entries).addEventListener("click", function () {
+      go("#/lesson/" + (coreLast || "l00-ai-world"));
     });
-    path.appendChild(steps);
+    $(".he-vibe", entries).addEventListener("click", function () {
+      go("#/lesson/" + firstVibe);
+    });
 
-    // 辅助入口：知识地图 / 实战
+    // 学习进度条（核心路径）
+    if (haveLast || doneCount > 0) {
+      var prog = el("div", "block home-prog");
+      prog.innerHTML = "<div class='block-title'><h2>你的学习进度</h2><span>已完成 " + doneCount + " / " + readyTotal + " · " + pct + "%</span></div>" +
+        "<div class='home-progbar'><i style='width:" + pct + "%'></i></div>" +
+        (haveLast ? "<button class='hh-cta' id='hhGo' style='margin-top:12px'>继续学习 · " + esc(L.getLesson(lastId).title) + " →</button>" : "");
+      w.appendChild(prog);
+      $("#hhGo").addEventListener("click", function () { go("#/lesson/" + lastId); });
+    }
+
+    // 两条路径总览
+    var duo = el("div", "home-duo");
+    duo.innerHTML =
+      "<div class='block home-path'><div class='block-title'><h2>🧠 核心路径 · 我想理解 AI</h2><span>12 章规划 · 首批 " + L.readyLessons().length + " 节</span></div>" +
+      "<div class='home-pathsum'>一条主线，从 AI 世界总图一路走到 RAG 与 Agent：理解 AI 如何学习、如何说话、如何做事。</div>" +
+      "<button class='viz-btn' data-goto='#/learn'>查看完整课程目录 →</button></div>" +
+      "<div class='block home-path vibe'><div class='block-title'><h2>🛠️ Vibe 路径 · 我想用 AI 做产品</h2><span>8 节规划 · 首批 4 节可学</span></div>" +
+      "<div class='home-pathsum'>Vibe Coding 工程基础：①Web 产品是怎么跑起来的 → ③API 与后端 → ④数据库登录安全 → ⑦从 Demo 上线。</div>" +
+      "<button class='viz-btn vibe' data-goto='#/learn'>查看 Vibe 课程目录 →</button></div>";
+    w.appendChild(duo);
+    $$("[data-goto]", duo).forEach(function (b) {
+      b.addEventListener("click", function () { go(b.getAttribute("data-goto")); });
+    });
+
+    // 辅助入口
     var aux = el("div", "home-aux");
     aux.innerHTML =
       "<a class='aux-link' href='#/map'><span class='aux-ico'>🧭</span><div><b>知识地图</b><i>我在 AI 世界的什么位置</i></div><em>打开 →</em></a>" +
@@ -291,76 +343,79 @@
   function renderLearn() {
     var w = pageShell(
       "<h1>课程目录</h1>",
-      "<p class='pg-sub'>从零看懂 AI · 一条主线。首批 <b>6 节核心课程</b>已上线，沿序往下学，其余课程会陆续上架。</p>"
+      "<p class='pg-sub'>两条学习路径：<b>核心路径 · 我想理解 AI</b> 与 <b>Vibe 路径 · 我想用 AI 做产品</b>。每条路径的首批课程现在就能学，其余会陆续上架。</p>"
     );
 
     var doneCount = Object.keys(progress.done || {}).filter(function (k) { return L.getLesson(k); }).length;
     var readyTotal = L.readyLessons().length;
     var prog = el("div", "learn-progress");
-    prog.innerHTML = "<div class='lp-text'>学习进度：已完成 <b>" + doneCount + "</b> / " + readyTotal + " 课</div>" +
+    prog.innerHTML = "<div class='lp-text'>学习进度：已完成 <b>" + doneCount + "</b> / 全站就绪 " + readyTotal + " 课</div>" +
       "<div class='lp-bar'><i style='width:" + (readyTotal ? Math.round(doneCount / readyTotal * 100) : 0) + "%'></i></div>";
     w.appendChild(prog);
 
     var curLesson = (progress.lastLesson && L.getLesson(progress.lastLesson)) ? progress.lastLesson : null;
-
-    // 按主线顺序收集：已就绪（核心路径） / 规划中（下一批）
-    var flat = pathFlat();
-    var readyList = flat.filter(function (x) { return L.getLesson(x.lesson.id); });
-    var planList = flat.filter(function (x) { return !L.getLesson(x.lesson.id); });
-
     var toc = el("div", "toc");
 
-    // (A) 核心路径：已就绪课程（始终展开、可键盘操作）
-    var zoneA = el("section", "toc-chapter open toc-core");
-    zoneA.innerHTML = "<div class='toc-ch-head'><span class='toc-no'>核心路径</span><b>首批 " + readyTotal + " 节 · 现在就能学</b><span class='toc-cnt'>沿序往下</span></div>";
-    var listA = el("ol", "toc-list toc-reveal");
-    readyList.forEach(function (x) {
-      var l = x.lesson, id = l.id;
-      var done = isDone(id);
-      var row = el("li", "toc-row" + (done ? " done" : "") + (curLesson === id ? " cur" : "") + " clickable");
-      row.innerHTML = "<span class='toc-num'>" + esc(l.no) + "</span>" +
-        "<span class='toc-title'>" + esc(l.title) + "</span>" +
-        (done ? "<span class='toc-st ok'>✔ 已学</span>" : "<span class='toc-st'>开始</span>");
-      // 键盘可访问
-      row.setAttribute("role", "button");
-      row.setAttribute("tabindex", "0");
-      row.setAttribute("aria-label", "开始学习：" + l.title);
-      function openLesson() { setLastLesson(id); go("#/lesson/" + id); }
-      row.addEventListener("click", openLesson);
-      row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openLesson(); } });
-      listA.appendChild(row);
-    });
-    zoneA.appendChild(listA);
-    toc.appendChild(zoneA);
+    // 通用：渲染「一条路径」的区块（已就绪展开 + 规划中折叠）
+    function pathZone(path, zid, zoneTitle, zoneDesc, accent) {
+      var flat = flatOf(path);
+      var readyList = flat.filter(function (x) { return L.getLesson(x.lesson.id); });
+      var planList = flat.filter(function (x) { return !L.getLesson(x.lesson.id); });
+      var zone = el("section", "toc-chapter open toc-core");
+      zone.innerHTML = "<div class='toc-ch-head'><span class='toc-no'>" + zoneTitle + "</span><b>" + zoneDesc + "</b><span class='toc-cnt'>沿序往下 · " + readyList.length + " 节可学</span></div>";
+      var listA = el("ol", "toc-list toc-reveal");
+      readyList.forEach(function (x) {
+        var l = x.lesson, id = l.id;
+        var done = isDone(id);
+        var row = el("li", "toc-row" + (done ? " done" : "") + (curLesson === id ? " cur" : "") + " clickable");
+        row.innerHTML = "<span class='toc-num'>" + esc(l.no) + "</span>" +
+          "<span class='toc-title'>" + esc(l.title) + "</span>" +
+          (done ? "<span class='toc-st ok'>✔ 已学</span>" : "<span class='toc-st'>开始</span>");
+        row.setAttribute("role", "button");
+        row.setAttribute("tabindex", "0");
+        row.setAttribute("aria-label", "开始学习：" + l.title);
+        function openLesson() { setLastLesson(id); go("#/lesson/" + id); }
+        row.addEventListener("click", openLesson);
+        row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openLesson(); } });
+        listA.appendChild(row);
+      });
+      zone.appendChild(listA);
+      // 规划中：折叠展示
+      if (planList.length) {
+        var headB = el("div", "toc-ch-head toc-next-head");
+        headB.innerHTML = "<b>即将上线 · " + planList.length + " 节在编写中</b><span class='toc-cnt'>规划中</span>";
+        zone.appendChild(headB);
+        var listB = el("ol", "toc-list toc-plan");
+        planList.forEach(function (x) {
+          var l = x.lesson;
+          var row = el("li", "toc-row soon");
+          row.innerHTML = "<span class='toc-num'>" + esc(l.no) + "</span>" +
+            "<span class='toc-title'>" + esc(l.title) + "</span>" +
+            "<span class='toc-st plan'>即将上线</span>";
+          row.setAttribute("aria-disabled", "true");
+          row.setAttribute("title", "该课程规划中，暂不可学习");
+          listB.appendChild(row);
+        });
+        zone.appendChild(listB);
+      }
+      toc.appendChild(zone);
+    }
 
-    // (B) 下一批：规划中课程（不展开，仅列标题）
-    var nextBatch = planList.slice(0, 6);
-    var zoneB = el("section", "toc-chapter toc-next");
-    zoneB.innerHTML = "<div class='toc-ch-head'><span class='toc-no plan'>下一批</span><b>即将上线 · 全站共 " + flat.length + " 门</b><span class='toc-cnt'>编写中</span></div>";
-    var listB = el("ol", "toc-list toc-plan");
-    nextBatch.forEach(function (x) {
-      var l = x.lesson;
-      var row = el("li", "toc-row soon");
-      row.innerHTML = "<span class='toc-num'>" + esc(l.no) + "</span>" +
-        "<span class='toc-title'>" + esc(l.title) + "</span>" +
-        "<span class='toc-st plan'>即将上线</span>";
-      row.setAttribute("aria-disabled", "true");
-      row.setAttribute("title", "该课程规划中，暂不可学习");
-      listB.appendChild(row);
-    });
-    zoneB.appendChild(listB);
-    toc.appendChild(zoneB);
+    // (A) 核心路径
+    pathZone(MAIN_PATH, "core", "🧠 核心路径", "我想理解 AI · 首批 " + L.readyLessons().length + " 节", "");
+    // (B) Vibe 路径
+    pathZone(VIBE_PATH, "vibe", "🛠️ Vibe 路径", "我想用 AI 做产品 · 首批 4 节可学", "");
 
     // (C) 完整知识地图
     var zoneC = el("section", "toc-chapter toc-map");
-    zoneC.innerHTML = "<a class='toc-map-link' href='#/map'><span class='aux-ico'>🧭</span><div><b>完整知识地图</b><i>看全部 " + flat.length + " 门课在整条主线上的位置</i></div><em>打开 →</em></a>";
+    zoneC.innerHTML = "<a class='toc-map-link' href='#/map'><span class='aux-ico'>🧭</span><div><b>完整知识地图</b><i>看全部课程在整条主线上的位置</i></div><em>打开 →</em></a>";
     toc.appendChild(zoneC);
 
     w.appendChild(toc);
-    w.appendChild(el("p", "toc-note", "已就绪课程随时可学；「即将上线」的在编写中，会陆续开放。想提前了解全貌，可先看知识地图。"));
+    w.appendChild(el("p", "toc-note", "每条路径都是主线：按序号一课一课往下学即可，会贯穿始终。"));
   }
   function chapterIdOf(id) {
-    var a = pathFlat();
+    var a = flatOf(pathOf(id));
     for (var i = 0; i < a.length; i++) if (a[i].lesson.id === id) return a[i].chapterIdx;
     return -1;
   }
@@ -532,6 +587,7 @@
       case "realworld": return secRealworld(sec, si);
       case "compare": return secCompare(sec, si);
       case "mistakes": return secMistakes(sec, si);
+      case "ask": return secAsk(sec, si);
       case "practice": return secPractice(sec, si);
       case "connection": return secConnection(sec, si);
       default: return el("div", "sec", "");
@@ -564,6 +620,7 @@
     mistakes: "最常见的误解",
     exercise: "你猜一下：接下来会怎样？",
     check: "小测验：你真的懂了吗",
+    ask: "怎么用 AI 帮你做这一步",
     connection: "和前后课连起来",
     practice: "动手练一练"
   };
@@ -572,7 +629,7 @@
     intuition: "直觉理解", how: "它是怎么工作的", deep: "深入一点",
     realworld: "现实中的应用", compare: "对比区分", mistakes: "常见误解",
     opening: "开场问题", exercise: "你猜一下", check: "结课检测",
-    practice: "动手练 + 小测验", connection: "和前面/后面的联系"
+    ask: "向 AI 提问模板", practice: "动手练 + 小测验", connection: "和前面/后面的联系"
   };
 
   /* 滚动到指定锚点（用于"答错跳回对应教学段落"） */
@@ -842,6 +899,20 @@
     w.appendChild(ul);
     return w;
   }
+  function secAsk(sec, si) {
+    var w = secShell(si, "ask", sec.title);
+    if (sec.scenario) w.appendChild(el("div", "ask-scenario", "🗓️ " + esc(sec.scenario)));
+    if (sec.template) w.appendChild(el("div", "ask-template", "<div class='ask-tag'>📋 可以直接给 AI 的话术模板</div><pre>" + esc(sec.template) + "</pre>"));
+    var acc = sec.acceptance || [];
+    if (acc.length) {
+      var ul = el("ul", "ask-acc");
+      ul.appendChild(el("div", "ask-tag", "✅ 收到 AI 的回答后，用这张「验收清单」核对"));
+      acc.forEach(function (a) { ul.appendChild(el("li", "", esc(a))); });
+      w.appendChild(ul);
+    }
+    if (sec.tip) w.appendChild(el("div", "ask-tip", "💡 " + esc(sec.tip)));
+    return w;
+  }
   function secPractice(sec, si) {
     var w = secShell(si, "practice");
     // quiz
@@ -909,12 +980,19 @@
     var w = secShell(si, "connection");
     var know = (sec.known || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("");
     var learn = (sec.learned || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("");
+    var linksHtml = "";
+    if (sec.links && sec.links.length) {
+      linksHtml = "<div class='conn-links'><h3>🔗 与本路径相关的 AI 课程</h3>" +
+        sec.links.map(function (lk) {
+          return "<a class='conn-link' href='" + esc(lk.href) + "'>" + "📘 " + esc(lk.text) + " →</a>";
+        }).join("") + "</div>";
+    }
     w.innerHTML +=
       "<div class='conn-grid'>" +
         (know ? "<div class='conn-col known'><h3>你已掌握</h3><ul>" + know + "</ul></div>" : "") +
         (learn ? "<div class='conn-col learned'><h3>刚学到</h3><ul>" + learn + "</ul></div>" : "") +
         (sec.next ? "<div class='conn-next'><h3>接下来</h3><p>" + esc(sec.next) + "</p></div>" : "") +
-      "</div>";
+      "</div>" + linksHtml;
     return w;
   }
 

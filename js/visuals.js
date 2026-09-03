@@ -867,6 +867,480 @@
     renderClue();
   }
 
+  /* ===================== Vibe Coding 路径 · V系列新组件 ===================== */
+  /* 风格沿用既有 viz-XXX 基础样式，组件级样式后缀见 style.css。
+     所有异步步骤都带代数令牌，避免重复触发交错。 */
+
+  /* ---------- V1. 请求流：一个 URL 从输入到渲染经历了什么 ---------- */
+  function requestFlow(c) {
+    c.innerHTML = "";
+    var head = el("div", "viz-head");
+    head.innerHTML = "<div class='viz-hint'>你在地址栏敲下回车到页面出现，中间隔着 7 个环节，且分布在不同『层』。点『开始一个请求』逐步播放，看每个环节属于哪一层、出错会是什么现象。</div>";
+    c.appendChild(head);
+
+    var bar = el("div", "vf-bar");
+    bar.innerHTML = "<div class='vf-addr'><span class='vf-lock'>🔒</span>https://xiaodian.shop/login</div>" +
+      "<button class='viz-btn' id='vfPlay'>▶ 开始一个请求</button>" +
+      "<button class='viz-btn ghost' id='vfReset'>↺ 重置</button>";
+    c.appendChild(bar);
+
+    var flow = el("div", "vf-flow");
+    c.appendChild(flow);
+
+    var nodes = [
+      { i: "🌐", t: "输入网址", l: "前端", d: "在地址栏回车，浏览器准备访问 xiaodian.shop。" },
+      { i: "📇", t: "DNS 解析", l: "网络", d: "把域名『xiaodian.shop』翻译成服务器的 IP 地址（像查通讯录）。" },
+      { i: "🔗", t: "建立连接+HTTP", l: "网络", d: "浏览器与服务器建立连接，并发出 HTTP 请求：GET /login。" },
+      { i: "🖥️", t: "服务器→后端", l: "后端", d: "Web 服务器把请求转交给应用后端程序，开始处理业务。" },
+      { i: "🗄️", t: "后端读写数据库", l: "数据", d: "后端查数据库：这个用户存在吗？密码对吗？（SQL 查询）" },
+      { i: "📦", t: "返回 HTTP 响应", l: "后端", d: "后端拼好响应：状态码 200 + HTML/JSON，发回浏览器。" },
+      { i: "🎨", t: "浏览器渲染", l: "前端", d: "浏览器把 HTML/CSS/JS 画成你看到的登录页面。" }
+    ];
+    var layerColor = { "前端": "var(--primary)", "网络": "var(--warn)", "后端": "var(--accent)", "数据": "var(--danger)" };
+
+    nodes.forEach(function (n, i) {
+      var box = el("div", "vf-node");
+      box.innerHTML = "<div class='vf-ico'>" + n.i + "</div><div class='vf-t'>" + n.t + "</div>" +
+        "<div class='vf-layer' style='color:" + layerColor[n.l] + "'>" + n.l + "</div>";
+      if (i < nodes.length - 1) {
+        var arrow = el("div", "vf-arrow", "→");
+        flow.appendChild(arrow);
+      }
+      flow.appendChild(box);
+    });
+
+    var detail = el("div", "vf-detail");
+    c.appendChild(detail);
+
+    var gen = 0;
+    var current = -1;
+
+    function paint(idx) {
+      var boxes = flow.querySelectorAll(".vf-node");
+      boxes.forEach(function (b, i) {
+        b.classList.toggle("cur", i === idx);
+        b.classList.toggle("done", i < idx && idx !== -1);
+      });
+      if (idx >= 0) {
+        detail.innerHTML = "<div class='vf-d'><span class='vf-dn'>" + (idx + 1) + ".</span> " + esc(nodes[idx].d) + "</div>";
+      }
+    }
+    function play() {
+      var my = ++gen;
+      if (current >= nodes.length - 1) current = -1;
+      function advance(i) {
+        if (my !== gen) return;
+        if (i >= nodes.length) {
+          paint(-1);
+          detail.innerHTML = "<div class='vf-d done'>✅ 一次完整的请求：<b>前端发送 → 网络传输 → 后端处理 → 数据库查询 → 返回渲染</b>。这就是『一个 Web 产品跑起来』的骨架。下次出错，先问——它坏在第几层？</div>";
+          return;
+        }
+        paint(i);
+        setTimeout(function () { if (my === gen) advance(i + 1); }, 650);
+      }
+      current = 0;
+      advance(0);
+    }
+    document.getElementById("vfPlay").addEventListener("click", play);
+    document.getElementById("vfReset").addEventListener("click", function () {
+      gen++; current = -1; paint(-1); detail.innerHTML = "";
+    });
+  }
+
+  /* ---------- V2. HTTP 查看器：亲手发一个请求 ---------- */
+  function httpViewer(c) {
+    c.innerHTML = "";
+    var head = el("div", "viz-head");
+    head.innerHTML = "<div class='viz-hint'>选一个 HTTP 方法 + 一个预设接口（或自己填地址），点『发送』。它会展示这次请求带了什么、服务器返回什么状态码与 JSON。体会：同样的 URL，方法不同 = 动作不同；状态码 2xx/4xx/5xx 代表不同结果。</div>";
+    c.appendChild(head);
+
+    var ctrl = el("div", "hv-ctrl");
+    var methods = ["GET", "POST", "PUT", "DELETE"];
+    var selMethod = "GET";
+    ctrl.innerHTML = "<div class='hv-methods'><span class='hv-lbl'>方法</span>" +
+      methods.map(function (m) { return "<button class='viz-btn ghost hv-m' data-m='" + m + "'>" + m + "</button>"; }).join("") +
+      "</div>";
+    c.appendChild(ctrl);
+
+    var urlRow = el("div", "hv-url");
+    urlRow.innerHTML = "<span class='hv-lbl'>URL</span><input class='viz-input' id='hvUrl' value='https://api.example.com/users' style='flex:1'>" +
+      "<button class='viz-btn' id='hvSend'>发送</button>";
+    c.appendChild(urlRow);
+
+    var presets = el("div", "hv-presets");
+    presets.innerHTML = "<span class='viz-note'>预设接口：</span>" +
+      "<button class='viz-btn ghost' data-url='https://api.example.com/users' data-m='GET'>GET /users（查列表）</button>" +
+      "<button class='viz-btn ghost' data-url='https://api.example.com/users' data-m='POST'>POST /users（新建）</button>" +
+      "<button class='viz-btn ghost' data-url='https://api.example.com/users/42' data-m='GET'>GET /users/42（查单个）</button>" +
+      "<button class='viz-btn ghost' data-url='https://api.example.com/users/42' data-m='DELETE'>DELETE /users/42（删除）</button>" +
+      "<button class='viz-btn ghost' data-url='https://api.example.com/login' data-m='POST'>POST /login（登录-错误密码）</button>";
+    c.appendChild(presets);
+
+    var out = el("div", "hv-out");
+    c.appendChild(out);
+
+    function selectMethod(m) {
+      selMethod = m;
+      ctrl.querySelectorAll(".hv-m").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-m") === m);
+      });
+    }
+    selectMethod("GET");
+    ctrl.querySelectorAll(".hv-m").forEach(function (b) {
+      b.addEventListener("click", function () { selectMethod(b.getAttribute("data-m")); });
+    });
+    presets.querySelectorAll("button[data-url]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        selectMethod(b.getAttribute("data-m"));
+        document.getElementById("hvUrl").value = b.getAttribute("data-url");
+      });
+    });
+
+    // 状态码→含义 & 模拟响应
+    function simulate(m, url) {
+      var u = url.replace(/\/+$/, "");
+      // 校验地址
+      if (!/^https?:\/\/.+/.test(url)) {
+        return { status: 400, stxt: "客户端错误", body: { error: "URL 格式不正确（需要 http(s):// 开头）。" }, meaning: "还没发起请求就被浏览器拦下——网络层的前端校验。" };
+      }
+      if (/\/login$/.test(u) && m === "POST") {
+        return { status: 401, stxt: "未授权", body: { ok: false, error: "密码错误，请重试" }, meaning: "401：服务器认出了你，但你没资格——密码不对。属于『身份认证』问题，出在后端。" };
+      }
+      if (/\/users\/\d+\/?$/.test(u) && m === "GET") {
+        return { status: 200, stxt: "OK", body: { id: 42, nickname: "小林", vip: true }, meaning: "200：成功了。服务器返回了你要的单个用户 JSON。GET 只读不改变数据。" };
+      }
+      if (/\/users\/\d+\/?$/.test(u) && m === "DELETE") {
+        return { status: 200, stxt: "OK", body: { ok: true, deleted: 1 }, meaning: "200：删除成功。DELETE 删除资源——同一 URL，方法和 GET 完全不同。" };
+      }
+      if (/\/users\/?\s*$/.test(u) && m === "GET") {
+        return { status: 200, stxt: "OK", body: { users: [{ id: 1, nickname: "小林" }, { id: 2, nickname: "阿新" }] }, meaning: "200：GET 查列表，返回多个资源。服务器没被改动，可反复安全调用。" };
+      }
+      if (/\/users\/?\s*$/.test(u) && m === "POST") {
+        return { status: 201, stxt: "Created", body: { ok: true, id: 43 }, meaning: "201：新建成功（Created）。POST 会在服务器上『新增』一条数据。注意 POST 可产生副作用，不可随意重复。" };
+      }
+      return { status: 404, stxt: "Not Found", body: { error: "资源不存在" }, meaning: "404：服务器找不到这个地址/资源。可能是 URL 写错，或这个资源本来就不存在。" };
+    }
+
+    function send() {
+      var url = document.getElementById("hvUrl").value.trim() || "https://api.example.com/users";
+      var r = simulate(selMethod, url);
+      out.innerHTML =
+        "<div class='hv-req'><div class='hv-cap'>📨 请求（你发出去的）</div><pre>" + esc(selMethod + " " + url + " HTTP/1.1") +
+        "\nHost: " + esc(url.replace(/^https?:\/\//, "").split("/")[0]) +
+        "\nContent-Type: application/json" + (selMethod === "POST" || selMethod === "PUT" ? "\n\n{\"name\":\"新用户\"}" : "") + "</pre></div>" +
+        "<div class='hv-res'><div class='hv-cap'>📬 响应（服务器返回的）</div>" +
+        "<div class='hv-code " + (r.status >= 500 ? "c5" : r.status >= 400 ? "c4" : "c2") + "'><b>" + r.status + "</b> " + esc(r.stxt) + "</div>" +
+        "<pre>" + esc(JSON.stringify(r.body, null, 2)) + "</pre>" +
+        "<div class='hv-mean'>🎯 含义：" + esc(r.meaning) + "</div></div>";
+    }
+    document.getElementById("hvSend").addEventListener("click", send);
+    send();
+  }
+
+  /* ---------- V3. 数据库设计器：把业务拆成表 ---------- */
+  function dbDesigner(c) {
+    c.innerHTML = "";
+    var head = el("div", "viz-head");
+    head.innerHTML = "<div class='viz-hint'>把『用户能注册、能收藏文章』拆成数据库的表和字段。点击底部的角色按钮，把它设为主键/外键，SQL 和『这样设计的理由』会实时更新。体会：主键保证唯一、外键负责关联、多余的重复数据要靠外键消除。</div>";
+    c.appendChild(head);
+
+    // 预定义一张 users 表的可编辑字段
+    var panel = el("div", "db-panel");
+    panel.innerHTML =
+      "<div class='db-title'>🗂️ 表：users（用户）</div>" +
+      "<div class='db-cols' id='dbCols'></div>" +
+      "<div class='viz-toolbar'><button class='viz-btn' id='dbAdd'>＋ 加一列</button>" +
+      "<button class='viz-btn ghost' id='dbCheck'>🧐 验证设计</button></div>";
+    c.appendChild(panel);
+
+    var cols = [
+      { name: "id", type: "INT", pk: true, fk: "" },
+      { name: "nickname", type: "VARCHAR(50)", pk: false, fk: "" },
+      { name: "email", type: "VARCHAR(120)", pk: false, fk: "" }
+    ];
+
+    function renderCols() {
+      var box = document.getElementById("dbCols");
+      box.innerHTML = "";
+      cols.forEach(function (col, i) {
+        var row = el("div", "db-row");
+        var nm = el("div", "db-rowhead");
+        nm.innerHTML = "<span class='db-name'>" + esc(col.name) + "</span><span class='db-type'>" + esc(col.type) + "</span>" +
+          (col.pk ? "<span class='db-pk'>PK</span>" : "") +
+          (col.fk ? "<span class='db-fk'>FK→" + esc(col.fk) + "</span>" : "");
+        var btns = el("div", "db-actions");
+        var pk = el("button", "viz-btn ghost", col.pk ? "✔ 主键" : "设为主键");
+        pk.addEventListener("click", function () {
+          cols.forEach(function (x) { x.pk = false; });
+          col.pk = !col.pk; renderCols(); updateSql();
+        });
+        var fk = el("button", "viz-btn ghost", col.fk ? "✔ 外键(" + col.fk + ")" : "设为外键");
+        fk.addEventListener("click", function () {
+          col.fk = col.fk ? "" : "users.id"; col.pk = false; renderCols(); updateSql();
+        });
+        var del = el("button", "viz-btn ghost", "✕");
+        del.addEventListener("click", function () { cols.splice(i, 1); renderCols(); updateSql(); });
+        btns.appendChild(pk); btns.appendChild(fk); btns.appendChild(del);
+        row.appendChild(nm); row.appendChild(btns);
+        box.appendChild(row);
+      });
+    }
+
+    var sql = el("div", "db-sql");
+    sql.innerHTML = "<div class='db-sqlcap'>🧾 实时生成的 SQL</div><pre id='dbSql'></pre><div class='db-why' id='dbWhy'></div>";
+    c.appendChild(sql);
+
+    function updateSql() {
+      var lines = ["CREATE TABLE users ("];
+      cols.forEach(function (col, i) {
+        var d = "  " + col.name + " " + col.type;
+        d += " NOT NULL";
+        if (col.pk) d += ", PRIMARY KEY (" + col.name + ")";
+        if (col.fk) d += ", FOREIGN KEY (" + col.name + ") REFERENCES " + col.fk + "(" + col.name + ")";
+        lines.push(d + (i < cols.length - 1 ? "," : ""));
+      });
+      lines.push(");");
+      document.getElementById("dbSql").textContent = lines.join("\n") + "\n\n-- 说明：主键唯一标识一行；外键把本表与 users.id 关联，避免重复存用户资料。";
+
+      var pkCols = cols.filter(function (x) { return x.pk; });
+      var fkCols = cols.filter(function (x) { return x.fk; });
+      var msg = "";
+      if (!pkCols.length) msg += "⚠️ 没有主键：每张表都该有主键唯一标识一行，否则会出现重复/无法定位。";
+      else msg += "✅ 有主键（" + pkCols[0].name + "），每行可被唯一找到。";
+      if (fkCols.length) msg += " ✅ 有外键（" + fkCols.map(function (x) { return x.name; }).join("、") + "）→ 关联到 users.id，保证引用一致。";
+      document.getElementById("dbWhy").textContent = msg;
+    }
+
+    document.getElementById("dbAdd").addEventListener("click", function () {
+      var n = cols.length + 1;
+      cols.push({ name: "col" + n, type: "VARCHAR(50)", pk: false, fk: "" });
+      renderCols(); updateSql();
+    });
+    document.getElementById("dbCheck").addEventListener("click", function () {
+      var pkCols = cols.filter(function (x) { return x.pk; });
+      if (!pkCols.length) {
+        document.getElementById("dbWhy").textContent = "❌ 设计要点：你还缺一个主键！主键保证每一行都能被唯一找到（关系数据库的核心）。把 id 设为主键试试。";
+      } else {
+        document.getElementById("dbWhy").textContent = "✅ 设计合理：有主键保证唯一性。若把收藏关系也做成表（user_id + article_id 两张外键），就能表达『收藏』这种多对多关系且不重复。";
+      }
+    });
+
+    renderCols();
+    updateSql();
+  }
+
+  /* ---------- V4. 认证方式对比：Session / JWT / OAuth ---------- */
+  function authCompare(c) {
+    c.innerHTML = "";
+    var head = el("div", "viz-head");
+    head.innerHTML = "<div class='viz-hint'>登录后网站怎么『记住你』？三种主流方案：Session（服务器记账）、JWT（客户端拿票）、OAuth（第三方代登录）。点按钮切换，看各自的凭证在哪、怎么验证、优缺点。</div>";
+    c.appendChild(head);
+
+    var cards = {
+      session: { name: "🪪 Session（会话）", who: "凭证存在服务器端内存/数据库，客户端只留一个随机 session_id。", flow: "登录 → 服务器生成 session → 存服务端 + 发 id 给浏览器 → 每次请求带 id，服务端核对。", pros: "安全（凭证不暴露给客户端）、可强制踢下线。", cons: "服务器要存状态、多服务器要共享 session、占用内存。" },
+      jwt: { name: "🎫 JWT（令牌）", who: "凭证是一串签名的 Token，存在客户端，服务端『无状态』验签。", flow: "登录 → 服务器签发带签名的 JWT → 客户端保存 → 每次请求带 Token，服务端验签名即认（不用存）。", pros: "无需服务器存状态、易横向扩展、适合前后端分离/App。", cons: "无法主动踢下线（到期前一直有效）、签错密钥=灾难、载荷别放敏感数据。" },
+      oauth: { name: "🔑 OAuth / 第三方登录", who: "登录交给第三方（微信/Google），你的服务不接触密码。", flow: "点『微信登录』→ 跳微信授权 → 微信回传授权码 → 你的服务拿码换用户信息 → 建立本地会话。", pros: "用户免注册、不存密码、更安全省心。", cons: "依赖第三方、流程较复杂、有回调地址等配置。" }
+    };
+
+    var keys = ["session", "jwt", "oauth"];
+    var sel = "jwt";
+
+    var tabs = el("div", "au-tabs");
+    tabs.innerHTML = keys.map(function (k) {
+      return "<button class='viz-btn ghost au-tab' data-k='" + k + "'>" + cards[k].name + "</button>";
+    }).join("");
+    c.appendChild(tabs);
+
+    var body = el("div", "au-body");
+    c.appendChild(body);
+
+    function render(k) {
+      var d = cards[k];
+      body.innerHTML =
+        "<div class='au-grid'>" +
+        "<div class='au-cell'><div class='au-cap'>凭证在哪</div><p>" + esc(d.who) + "</p></div>" +
+        "<div class='au-cell'><div class='au-cap'>怎么走的</div><p>" + esc(d.flow) + "</p></div>" +
+        "<div class='au-cell good'><div class='au-cap'>✅ 优点</div><p>" + esc(d.pros) + "</p></div>" +
+        "<div class='au-cell warn'><div class='au-cap'>⚠️ 缺点</div><p>" + esc(d.cons) + "</p></div>" +
+        "</div>" +
+        "<div class='au-pick'>当前选择：<b>" + esc(cards[k].name) + "</b> × 适合「想省心 + 前后端分离 + 不怕短期过期」的场景；若需要『用户能主动登出/后台踢人』，更推荐 Session；若想免注册，用 OAuth。</div>";
+      tabs.querySelectorAll(".au-tab").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-k") === k);
+      });
+    }
+    tabs.querySelectorAll(".au-tab").forEach(function (b) {
+      b.addEventListener("click", function () { sel = b.getAttribute("data-k"); render(sel); });
+    });
+    render(sel);
+  }
+
+  /* ---------- V5. 部署控制台：构建→迁移→健康检查→切流量---------- */
+  function deployConsole(c) {
+    c.innerHTML = "";
+    var head = el("div", "viz-head");
+    head.innerHTML = "<div class='viz-hint'>点『部署』，看一次真实上线要经过：构建 → 迁移 → 健康检查 → 切换流量。把『制造健康检查失败』打开再部署，你会看到系统<b>拒绝放量并自动回滚</b>——这就是为什么上线不至于『一键搞挂』。</div>";
+    c.appendChild(head);
+
+    var ctrl = el("div", "viz-toolbar");
+    ctrl.innerHTML = "<button class='viz-btn' id='dpDeploy'>🚀 部署</button>" +
+      "<label class='dp-toggle'><input type='checkbox' id='dpFail'> 制造健康检查失败（看回滚）</label>" +
+      "<button class='viz-btn ghost' id='dpReset'>↺ 重置</button>" +
+      "<span class='viz-note' id='dpState'></span>";
+    c.appendChild(ctrl);
+
+    var stages = [
+      { i: "📦", t: "构建 build", s: "把源码打包成可发布产物" },
+      { i: "📤", t: "迁移 migrate", s: "更新数据库表结构" },
+      { i: "💓", t: "健康检查 /health", s: "探测新版本是否真的活着" },
+      { i: "🔀", t: "切换流量", s: "把用户从旧版切到新版" }
+    ];
+    var flow = el("div", "dp-flow");
+    stages.forEach(function (st, i) {
+      var box = el("div", "dp-stage");
+      box.innerHTML = "<div class='dp-ico'>" + st.i + "</div><div class='dp-t'>" + st.t + "</div>";
+      if (i < stages.length - 1) { flow.appendChild(el("div", "vf-arrow", "→")); }
+      flow.appendChild(box);
+    });
+    c.appendChild(flow);
+
+    var term = el("div", "dp-term");
+    term.innerHTML = "<div class='dp-termcap'>▶ 部署终端</div><div class='dp-log' id='dpLog'></div>";
+    c.appendChild(term);
+
+    var logEl = null;
+    function log(html, cls) {
+      logEl.appendChild(el("div", "dp-line " + (cls || ""), html));
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function deploy() {
+      var fail = document.getElementById("dpFail").checked;
+      var my = ++deployGen;
+      logEl.innerHTML = "";
+      var stagesEl = flow.querySelectorAll(".dp-stage");
+      stagesEl.forEach(function (s) { s.className = "dp-stage"; });
+      var state = document.getElementById("dpState");
+      setTimeout(function () {
+        if (my !== deployGen) return;
+        log("$ git push origin main", "cmd");
+        log("▶ 检测到推送，触发 CI（构建中……）", "info");
+        stagesEl[0].classList.add("run");
+        setTimeout(function () {
+          if (my !== deployGen) return;
+          log("✔ 构建完成：dist/ 产物已生成", "ok");
+          stagesEl[0].classList.remove("run"); stagesEl[0].classList.add("ok");
+          stagesEl[1].classList.add("run");
+          setTimeout(function () {
+            if (my !== deployGen) return;
+            log("✔ 数据库迁移完成：ALTER TABLE users ADD vip TINYINT", "ok");
+            stagesEl[1].classList.remove("run"); stagesEl[1].classList.add("ok");
+            stagesEl[2].classList.add("run");
+            setTimeout(function () {
+              if (my !== deployGen) return;
+              if (fail) {
+                log("✘ 健康检查 /health → 503 Service Unavailable", "bad");
+                stagesEl[2].classList.remove("run"); stagesEl[2].classList.add("bad");
+                log("⚠ 新版本不健康！系统拒绝切换流量，自动回滚到上一个版本 v3.2.1", "warn");
+                state.textContent = "↩ 已自动回滚，用户无感知";
+                state.style.color = "var(--warn)";
+              } else {
+                log("✔ 健康检查 /health → 200 OK", "ok");
+                stagesEl[2].classList.remove("run"); stagesEl[2].classList.add("ok");
+                stagesEl[3].classList.add("run");
+                setTimeout(function () {
+                  if (my !== deployGen) return;
+                  log("✔ 灰度 10% → 50% → 100%，流量已全量切换", "ok");
+                  stagesEl[3].classList.remove("run"); stagesEl[3].classList.add("ok");
+                  log("✅ 上线成功！v4.0.0 已在运行。", "ok");
+                  state.textContent = "✅ 上线成功";
+                  state.style.color = "var(--good)";
+                }, 500);
+              }
+            }, 500);
+          }, 500);
+        }, 500);
+      }, 400);
+    }
+    document.getElementById("dpDeploy").addEventListener("click", deploy);
+    document.getElementById("dpReset").addEventListener("click", function () {
+      deployGen++;
+      logEl.innerHTML = "";
+      flow.querySelectorAll(".dp-stage").forEach(function (s) { s.className = "dp-stage"; });
+      document.getElementById("dpState").textContent = "";
+    });
+    var deployGen = 0;
+    logEl = document.getElementById("dpLog");
+  }
+
+  /* ---------- V6. LLM 调用可靠性：超时→重试→降级 ---------- */
+  function llmRetry(c) {
+    c.innerHTML = "";
+    var head = el("div", "viz-head");
+    head.innerHTML = "<div class='viz-hint'>你的产品里调用了大模型（LLM）。模型偶尔会慢、会超时、会挂。看三种策略：直连、带超时+重试、重试仍失败后的『降级 Fallback』。体会：工程上永远要为『上游不可靠』做兜底。</div>";
+    c.appendChild(head);
+
+    var ctrl = el("div", "viz-toolbar");
+    ctrl.innerHTML = "<button class='viz-btn' data-mode='ok'>😀 顺利</button>" +
+      "<button class='viz-btn ghost' data-mode='timeout'>⏳ 超时一次后重试成功</button>" +
+      "<button class='viz-btn ghost' data-mode='down'>💥 连续失败→降级</button>" +
+      "<button class='viz-btn ghost' id='lrReset'>↺ 重置</button>";
+    c.appendChild(ctrl);
+
+    var term = el("div", "llm-term");
+    term.innerHTML = "<div class='llm-log' id='llmLog'></div>";
+    c.appendChild(term);
+
+    var logEl = document.getElementById("llmLog");
+    function log(html, cls) {
+      logEl.appendChild(el("div", "llm-line " + (cls || ""), html));
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function call(mode) {
+      var my = ++llmGen;
+      logEl.innerHTML = "";
+      setTimeout(function () {
+        if (my !== llmGen) return;
+        log("→ 调用 LLM API（附超时 10s、最多重试 2 次）", "info");
+        if (mode === "ok") {
+          log("✔ 0ms 内返回：正常拿到摘要 ✔", "ok");
+          log("→ 直接使用生成结果。", "hint");
+        } else if (mode === "timeout") {
+          log("… 10s 超时，第 1 次重试……", "warn");
+          setTimeout(function () {
+            if (my !== llmGen) return;
+            log("… 又 8s，第 2 次重试……（指数退避）", "warn");
+            setTimeout(function () {
+              if (my !== llmGen) return;
+              log("✔ 第 2 次重试成功，拿到摘要 ✔", "ok");
+              log("→ 重试兜住了瞬时抖动：用户几乎无感知。", "hint");
+            }, 600);
+          }, 600);
+        } else {
+          log("… 10s 超时，重试 1……", "warn");
+          setTimeout(function () {
+            if (my !== llmGen) return;
+            log("… 重试 2……仍失败", "warn");
+            setTimeout(function () {
+              if (my !== llmGen) return;
+              log("✘ 重试耗尽，LLM 不可用。", "bad");
+              log("→ 触发【降级 Fallback】：返回本地缓存/预设文案，并对用户友好提示『生成服务暂时繁忙』，而不是白屏或报错。", "hint");
+              logEl.appendChild(el("div", "llm-fallback", "🛟 降级结果：『（系统提示：摘要服务暂时不可用，已为你展示最近一次的缓存摘要。）』"));
+            }, 600);
+          }, 600);
+        }
+      }, 400);
+    }
+    ctrl.querySelectorAll("button[data-mode]").forEach(function (b) {
+      b.addEventListener("click", function () { call(b.getAttribute("data-mode")); });
+    });
+    document.getElementById("lrReset").addEventListener("click", function () {
+      llmGen++; logEl.innerHTML = "";
+    });
+    var llmGen = 0;
+    call("ok");
+  }
+
   /* ===================== 注册 ===================== */
   V.registry = {
     "ai-world-map": worldMap,
@@ -874,7 +1348,13 @@
     "attention-heatmap": attentionHeatmap,
     "transformer-flow": transformerFlow,
     "rag-pipeline": ragPipeline,
-    "agent-loop": agentLoop
+    "agent-loop": agentLoop,
+    "request-flow": requestFlow,
+    "http-viewer": httpViewer,
+    "db-designer": dbDesigner,
+    "auth-compare": authCompare,
+    "deploy-console": deployConsole,
+    "llm-retry": llmRetry
   };
   V.render = function (container, kind, opts) {
     if (!container) return;
